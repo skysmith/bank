@@ -9,6 +9,7 @@ import { makeCode, createGameRow, fetchGameRow, updateGameRow, subscribeToGame }
 const $ = (id) => document.getElementById(id);
 
 // setup UI
+const gameHub = $("gameHub");
 const landingScreen = $("landingScreen");
 const setupScreen = $("setupScreen");
 const onlinePanel = $("onlinePanel");
@@ -16,6 +17,8 @@ const gameScreen = $("gameScreen");
 
 const brandLink = $("brandLink");
 const themeToggle = $("themeToggle");
+const enterBankBtn = $("enterBankBtn");
+const enterVoidBtn = $("enterVoidBtn");
 const goLocalBtn = $("goLocalBtn");
 const goOnlineBtn = $("goOnlineBtn");
 const backFromLocal = $("backFromLocal");
@@ -115,10 +118,16 @@ function escapeHtml(s){
 
 
 function hideAllScreens(){
+  if (gameHub) gameHub.style.display = "none";
   landingScreen.style.display = "none";
   setupScreen.style.display = "none";
   onlinePanel.style.display = "none";
   gameScreen.style.display = "none";
+}
+
+function showHub(){
+  hideAllScreens();
+  if (gameHub) gameHub.style.display = "block";
 }
 
 function showLanding(){
@@ -642,7 +651,11 @@ themeToggle?.addEventListener("click", () => {
   localStorage.setItem(THEME_KEY, next);
 });
 
-brandLink?.addEventListener("click", (e) => { e.preventDefault?.(); showLanding(); });
+brandLink?.addEventListener("click", (e) => { e.preventDefault?.(); showHub(); });
+enterBankBtn?.addEventListener("click", () => { renderSetup(); showLanding(); });
+enterVoidBtn?.addEventListener("click", () => {
+  window.open("./void-king/index.html", "_blank", "noopener");
+});
 goLocalBtn?.addEventListener("click", () => { showSetup(); renderSetup(); });
 goOnlineBtn?.addEventListener("click", () => { showOnlinePanel(); setOnlineStatus("enter a name to start"); });
 backFromLocal?.addEventListener("click", () => showLanding());
@@ -692,7 +705,7 @@ newGameBtn.addEventListener("click", () => {
   session = { ...session, mode: "local", code: null, version: 0 };
   pendingOnlineAction = false;
   game = null;
-  showLanding();
+  showHub();
   renderSetup();
 });
 
@@ -706,12 +719,11 @@ resetSaveBtn.addEventListener("click", () => {
   pendingOnlineAction = false;
   game = null;
   setupPlayers = [];
-  showLanding();
+  showHub();
   renderSetup();
 });
 
+initTheme();
 renderSetup();
 setOnlineStatus("");
-showLanding();
-
-initTheme();
+showHub();

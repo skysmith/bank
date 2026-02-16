@@ -205,6 +205,11 @@ button:disabled{ opacity:.5; cursor:not-allowed; }
   overflow:auto;
 }
 
+.eyebrow{ text-transform: uppercase; letter-spacing: .2em; font-size: 11px; color: var(--muted); }
+.hub{ display:flex; flex-direction:column; gap:16px; }
+.game-grid{ display:grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap:16px; }
+.game-card{ border:1px solid var(--line); border-radius:18px; padding:18px; background:rgba(13,15,22,.65); box-shadow:0 12px 30px rgba(0,0,0,.35); display:flex; flex-direction:column; gap:10px; }
+.game-card .pill{ background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.15); padding:4px 10px; border-radius:999px; font-size:11px; text-transform:uppercase; }
 .landing-grid{ display:flex; flex-wrap:wrap; gap:16px; margin-top:12px; }
 .landing-card{ flex:1; min-width:220px; border:1px dashed var(--line); border-radius:14px; padding:16px; background: rgba(13,15,22,.55); }
 .small-link{ border:none; color:var(--muted); font-size:12px; margin-top:14px; padding:0; text-align:left; }
