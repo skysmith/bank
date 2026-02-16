@@ -162,8 +162,6 @@ function renderGame(){
     const statusTxt = status.done ? (status.busted ? "busted" : "banked") : "playing";
     const activeMark = idx === game.activeIdx ? " ←" : "";
 
-    const rounds = p.rounds.map((s, i) => `<span class="rpill">r${i+1}:${s}</span>`).join("");
-
     card.innerHTML = `
       <div class="score-top">
         <div><strong>${escapeHtml(p.name)}</strong>${activeMark}</div>
@@ -173,7 +171,6 @@ function renderGame(){
         <div class="muted small">total</div>
         <div><strong>${p.total}</strong></div>
       </div>
-      <div class="rounds">${rounds || '<span class="muted small">—</span>'}</div>
     `;
     scoreboard.appendChild(card);
   });
