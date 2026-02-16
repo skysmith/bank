@@ -443,11 +443,8 @@ async function onRoll(){
 }
 
 async function onBank(){
-if (!game || isGameOver(game)) return;
+  if (!game || isGameOver(game)) return;
   if (!canIBank()) return;  // bank is now allowed for anyone online
-
-  // ... rest of bank logic
-}
 
   if (session.mode === "online"){
     await pushOnlineUpdate((g) => {
