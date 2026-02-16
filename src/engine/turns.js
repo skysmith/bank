@@ -81,12 +81,23 @@ export function afterSafeRollPassTurn(game){
   endTurn(game);
 }
 
+function announceWinners(game){
+  const sorted = [...game.players].map((p, idx) => ({ ...p, idx })).sort((a, b) => b.total - a.total);
+  const top = sorted[0];
+  const medal = (rank) => (rank === 0 ? "🥇" : rank === 1 ? "🥈" : rank === 2 ? "🥉" : "");
+
+  pushLog(game, `🏁 game over. winner: ${top.name} (${top.total}).`);
+  sorted.forEach((p, rank) => {
+    pushLog(game, `${medal(rank)} ${p.name}: ${p.total} pts`);
+  });
+}
+
 export function maybeAdvanceRound(game){
   if (!isRoundOver(game)) return false;
 
   if (game.round >= 10){
     game.round = 11; // mark game over
-    pushLog(game, `🏁 game over.`);
+    announceWinners(game);
     return true;
   }
 
