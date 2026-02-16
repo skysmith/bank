@@ -14,6 +14,7 @@ const setupScreen = $("setupScreen");
 const onlinePanel = $("onlinePanel");
 const gameScreen = $("gameScreen");
 
+const brandLink = $("brandLink");
 const goLocalBtn = $("goLocalBtn");
 const goOnlineBtn = $("goOnlineBtn");
 const backFromLocal = $("backFromLocal");
@@ -609,6 +610,7 @@ nameInput.addEventListener("keydown", (e) => { if (e.key === "Enter") addBtn.cli
 startBtn.addEventListener("click", () => startNewLocalGame(setupPlayers));
 resumeBtn.addEventListener("click", () => resumeSaved());
 
+brandLink?.addEventListener("click", (e) => { e.preventDefault?.(); showLanding(); });
 goLocalBtn?.addEventListener("click", () => { showSetup(); renderSetup(); });
 goOnlineBtn?.addEventListener("click", () => { showOnlinePanel(); setOnlineStatus("enter a name to start"); });
 backFromLocal?.addEventListener("click", () => showLanding());

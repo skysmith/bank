@@ -32,7 +32,17 @@ body{
   top: 0;
 }
 
-.brand{ font-weight:900; letter-spacing:.4px; }
+.brand-link{
+  font-weight:900;
+  letter-spacing:.4px;
+  color:var(--ink);
+  font-size:16px;
+  background:none;
+  border:none;
+  cursor:pointer;
+  text-transform:lowercase;
+}
+.brand-link:hover{ color:#fff; }
 
 .wrap{ max-width: 980px; margin: 18px auto 60px; padding: 0 14px; }
 
