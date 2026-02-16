@@ -15,6 +15,7 @@ const onlinePanel = $("onlinePanel");
 const gameScreen = $("gameScreen");
 
 const brandLink = $("brandLink");
+const themeToggle = $("themeToggle");
 const goLocalBtn = $("goLocalBtn");
 const goOnlineBtn = $("goOnlineBtn");
 const backFromLocal = $("backFromLocal");
@@ -68,6 +69,30 @@ let session = {
 
 // prevents double-roll / double-bank while an online update is in flight
 let pendingOnlineAction = false;
+
+const THEME_KEY = 'bank_theme_v1';
+
+function getStoredTheme(){
+  return localStorage.getItem(THEME_KEY);
+}
+
+function applyTheme(mode){
+  const root = document.documentElement;
+  const newMode = mode || 'dark';
+  root.setAttribute('data-theme', newMode);
+  themeToggle?.setAttribute('aria-label', `switch to ${newMode === 'dark' ? 'light' : 'dark'} mode`);
+  themeToggle && (themeToggle.textContent = newMode === 'dark' ? '🌗' : '🌙');
+}
+
+function initTheme(){
+  const stored = getStoredTheme();
+  if (stored){
+    applyTheme(stored);
+  }else{
+    const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+    applyTheme(prefersLight ? 'light' : 'dark');
+  }
+}
 
 // ---------- helpers ----------
 const randomId = () => (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2));
@@ -610,6 +635,13 @@ nameInput.addEventListener("keydown", (e) => { if (e.key === "Enter") addBtn.cli
 startBtn.addEventListener("click", () => startNewLocalGame(setupPlayers));
 resumeBtn.addEventListener("click", () => resumeSaved());
 
+themeToggle?.addEventListener("click", () => {
+  const current = document.documentElement.getAttribute("data-theme") || "dark";
+  const next = current === "dark" ? "light" : "dark";
+  applyTheme(next);
+  localStorage.setItem(THEME_KEY, next);
+});
+
 brandLink?.addEventListener("click", (e) => { e.preventDefault?.(); showLanding(); });
 goLocalBtn?.addEventListener("click", () => { showSetup(); renderSetup(); });
 goOnlineBtn?.addEventListener("click", () => { showOnlinePanel(); setOnlineStatus("enter a name to start"); });
@@ -681,3 +713,5 @@ resetSaveBtn.addEventListener("click", () => {
 renderSetup();
 setOnlineStatus("");
 showLanding();
+
+initTheme();
