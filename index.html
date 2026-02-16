@@ -21,8 +21,25 @@
   </header>
 
   <main class="wrap">
-    <section class="card" id="setupScreen">
-      <h1>setup</h1>
+    <section class="card" id="landingScreen">
+      <h1>bank dice</h1>
+      <p class="muted small">pick how you want to play.</p>
+      <div class="landing-grid">
+        <div class="landing-card">
+          <h2>single device</h2>
+          <p class="muted small">hot-seat mode with 2–4 players or AI.</p>
+          <button id="goLocalBtn" class="primary">play locally</button>
+        </div>
+        <div class="landing-card">
+          <h2>online multiplayer</h2>
+          <p class="muted small">create a lobby and share a code with friends.</p>
+          <button id="goOnlineBtn">play online</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" id="setupScreen" style="display:none;">
+      <h1>local setup</h1>
       <p class="muted small">
         add 2–4 players. hot-seat. first 3 turns: 7 is lucky (+70). after that: 7 busts. doubles double tally (late only).
       </p>
@@ -42,28 +59,32 @@
         <button id="startBtn" class="primary" disabled>start game</button>
         <button id="resumeBtn" class="ghost" style="display:none;">resume saved</button>
       </div>
+      <button class="ghost small-link" id="backFromLocal">← back</button>
     </section>
-    <hr style="border:0;border-top:1px solid #23283a;margin:16px 0;opacity:.7" />
 
-<h2>online multiplayer</h2>
-<p class="muted small">create a game → share the code → friends join from any device.</p>
+    <section class="card" id="onlinePanel" style="display:none;">
+      <h1>online multiplayer</h1>
+      <p class="muted small">create a game → share the code → friends join from any device.</p>
 
-<div class="row">
-  <input id="onlineName" type="text" placeholder="your name (for online)" maxlength="20" />
-</div>
+      <div class="row">
+        <input id="onlineName" type="text" placeholder="your name (for online)" maxlength="20" />
+      </div>
 
-<div class="row">
-  <button id="createOnlineBtn" class="primary">create online game</button>
-</div>
+      <div class="row">
+        <button id="createOnlineBtn" class="primary">create online game</button>
+      </div>
 
-<div class="row">
-  <input id="joinCodeInput" type="text" placeholder="game code (e.g. K9F2Q7)" maxlength="10" />
-  <button id="joinOnlineBtn">join</button>
-</div>
+      <div class="row">
+        <input id="joinCodeInput" type="text" placeholder="game code (e.g. K9F2Q7)" maxlength="10" />
+        <button id="joinOnlineBtn">join</button>
+      </div>
 
-<div class="row">
-  <div class="muted small" id="onlineStatus"></div>
-</div>
+      <div class="row">
+        <div class="muted small" id="onlineStatus"></div>
+      </div>
+
+      <button class="ghost small-link" id="backFromOnline">← back</button>
+    </section>
 
     <section class="card" id="gameScreen" style="display:none;">
       <div class="game-header">

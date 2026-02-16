@@ -9,8 +9,15 @@ import { makeCode, createGameRow, fetchGameRow, updateGameRow, subscribeToGame }
 const $ = (id) => document.getElementById(id);
 
 // setup UI
+const landingScreen = $("landingScreen");
 const setupScreen = $("setupScreen");
+const onlinePanel = $("onlinePanel");
 const gameScreen = $("gameScreen");
+
+const goLocalBtn = $("goLocalBtn");
+const goOnlineBtn = $("goOnlineBtn");
+const backFromLocal = $("backFromLocal");
+const backFromOnline = $("backFromOnline");
 
 const nameInput = $("nameInput");
 const addBtn = $("addBtn");
@@ -81,14 +88,31 @@ function escapeHtml(s){
 }
 
 
-function showGame(){
+function hideAllScreens(){
+  landingScreen.style.display = "none";
   setupScreen.style.display = "none";
+  onlinePanel.style.display = "none";
+  gameScreen.style.display = "none";
+}
+
+function showLanding(){
+  hideAllScreens();
+  landingScreen.style.display = "block";
+}
+
+function showGame(){
+  hideAllScreens();
   gameScreen.style.display = "block";
 }
 
 function showSetup(){
+  hideAllScreens();
   setupScreen.style.display = "block";
-  gameScreen.style.display = "none";
+}
+
+function showOnlinePanel(){
+  hideAllScreens();
+  onlinePanel.style.display = "block";
 }
 
 function getOrMakePlayerId(){
@@ -585,6 +609,11 @@ nameInput.addEventListener("keydown", (e) => { if (e.key === "Enter") addBtn.cli
 startBtn.addEventListener("click", () => startNewLocalGame(setupPlayers));
 resumeBtn.addEventListener("click", () => resumeSaved());
 
+goLocalBtn?.addEventListener("click", () => { showSetup(); renderSetup(); });
+goOnlineBtn?.addEventListener("click", () => { showOnlinePanel(); setOnlineStatus("enter a name to start"); });
+backFromLocal?.addEventListener("click", () => showLanding());
+backFromOnline?.addEventListener("click", () => showLanding());
+
 rollBtn.addEventListener("click", onRoll);
 bankBtn.addEventListener("click", onBank);
 nextRoundBtn.addEventListener("click", onNextRound);
@@ -629,7 +658,7 @@ newGameBtn.addEventListener("click", () => {
   session = { ...session, mode: "local", code: null, version: 0 };
   pendingOnlineAction = false;
   game = null;
-  showSetup();
+  showLanding();
   renderSetup();
 });
 
@@ -643,9 +672,10 @@ resetSaveBtn.addEventListener("click", () => {
   pendingOnlineAction = false;
   game = null;
   setupPlayers = [];
-  showSetup();
+  showLanding();
   renderSetup();
 });
 
 renderSetup();
 setOnlineStatus("");
+showLanding();
