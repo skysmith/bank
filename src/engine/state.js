@@ -28,7 +28,8 @@ export function makeGame(players){
 }
 
 export function phase(game){
-  return game.turnCount < 3 ? "early" : "late";
+  // first three turns (turnCounts 1-3) keep 7s lucky
+  return game.turnCount <= 3 ? "early" : "late";
 }
 
 export function phaseLabel(game){
