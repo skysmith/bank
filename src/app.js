@@ -11,6 +11,7 @@ const $ = (id) => document.getElementById(id);
 // setup UI
 const gameHub = $("gameHub");
 const landingScreen = $("landingScreen");
+const voidScreen = $("voidScreen");
 const setupScreen = $("setupScreen");
 const onlinePanel = $("onlinePanel");
 const gameScreen = $("gameScreen");
@@ -21,6 +22,8 @@ const enterBankBtn = $("enterBankBtn");
 const enterVoidBtn = $("enterVoidBtn");
 const goLocalBtn = $("goLocalBtn");
 const goOnlineBtn = $("goOnlineBtn");
+const backFromBank = $("backFromBank");
+const backFromVoid = $("backFromVoid");
 const backFromLocal = $("backFromLocal");
 const backFromOnline = $("backFromOnline");
 
@@ -120,6 +123,7 @@ function escapeHtml(s){
 function hideAllScreens(){
   if (gameHub) gameHub.style.display = "none";
   landingScreen.style.display = "none";
+  voidScreen.style.display = "none";
   setupScreen.style.display = "none";
   onlinePanel.style.display = "none";
   gameScreen.style.display = "none";
@@ -133,6 +137,11 @@ function showHub(){
 function showLanding(){
   hideAllScreens();
   landingScreen.style.display = "block";
+}
+
+function showVoid(){
+  hideAllScreens();
+  voidScreen.style.display = "block";
 }
 
 function showGame(){
@@ -653,11 +662,11 @@ themeToggle?.addEventListener("click", () => {
 
 brandLink?.addEventListener("click", (e) => { e.preventDefault?.(); showHub(); });
 enterBankBtn?.addEventListener("click", () => { renderSetup(); showLanding(); });
-enterVoidBtn?.addEventListener("click", () => {
-  window.open("./void-king/index.html", "_blank", "noopener");
-});
+enterVoidBtn?.addEventListener("click", () => { showVoid(); });
 goLocalBtn?.addEventListener("click", () => { showSetup(); renderSetup(); });
 goOnlineBtn?.addEventListener("click", () => { showOnlinePanel(); setOnlineStatus("enter a name to start"); });
+backFromBank?.addEventListener("click", () => showHub());
+backFromVoid?.addEventListener("click", () => showHub());
 backFromLocal?.addEventListener("click", () => showLanding());
 backFromOnline?.addEventListener("click", () => showLanding());
 
