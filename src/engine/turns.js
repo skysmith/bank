@@ -44,8 +44,24 @@ export function bustActivePlayer(game){
   ps.done = true;
   ps.busted = true;
 
-  pushLog(game, `💥 ${game.players[idx].name} busted (0).`);
-  endTurn(game);
+  pushLog(game, `💥 ${game.players[idx].name} busted (0). round ends.`);
+
+  // new rule: once any player busts, the whole round is over.
+  endRoundImmediately(game, idx);
+}
+
+function endRoundImmediately(game, bustedIdx){
+  game.players.forEach((player, idx) => {
+    if (idx === bustedIdx) return; // already marked
+    const status = game.roundStatus[idx];
+    if (status.done) return; // already banked earlier
+
+    player.rounds.push(0);
+    status.done = true;
+    status.busted = true;
+  });
+
+  pushLog(game, `⛔ round ended due to bust. remaining active players scored 0.`);
 }
 
 export function afterSafeRollPassTurn(game){
