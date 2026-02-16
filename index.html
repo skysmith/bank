@@ -1,0 +1,117 @@
+---
+
+## index.html
+
+```html
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>bank dice</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">bank dice</div>
+    <div class="topbar-actions">
+      <button id="newGameBtn" class="ghost">new game</button>
+      <button id="resetSaveBtn" class="ghost">reset save</button>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="card" id="setupScreen">
+      <h1>setup</h1>
+      <p class="muted small">
+        add 2–4 players. hot-seat. first 3 turns: 7 is lucky (+70). after that: 7 busts. doubles double tally (late only).
+      </p>
+
+      <div class="row">
+        <input id="nameInput" type="text" placeholder="player name (e.g. sky)" maxlength="20" />
+        <button id="addBtn">add</button>
+      </div>
+
+      <div class="row">
+        <label class="chk"><input id="aiToggle" type="checkbox" /> new players are AI</label>
+      </div>
+
+      <ul id="playerList" class="list"></ul>
+
+      <div class="row">
+        <button id="startBtn" class="primary" disabled>start game</button>
+        <button id="resumeBtn" class="ghost" style="display:none;">resume saved</button>
+      </div>
+    </section>
+    <hr style="border:0;border-top:1px solid #23283a;margin:16px 0;opacity:.7" />
+
+<h2>online multiplayer</h2>
+<p class="muted small">create a game → share the code → friends join from any device.</p>
+
+<div class="row">
+  <input id="onlineName" type="text" placeholder="your name (for online)" maxlength="20" />
+</div>
+
+<div class="row">
+  <button id="createOnlineBtn" class="primary">create online game</button>
+</div>
+
+<div class="row">
+  <input id="joinCodeInput" type="text" placeholder="game code (e.g. K9F2Q7)" maxlength="10" />
+  <button id="joinOnlineBtn">join</button>
+</div>
+
+<div class="row">
+  <div class="muted small" id="onlineStatus"></div>
+</div>
+
+    <section class="card" id="gameScreen" style="display:none;">
+      <div class="game-header">
+        <div>
+          <h1>game</h1>
+          <div class="muted small" id="phaseText">—</div>
+        </div>
+        <div class="pillbar">
+          <div class="pill">round <span id="roundNum">1</span>/10</div>
+          <div class="pill">turns <span id="turnCount">0</span></div>
+        </div>
+      </div>
+
+      <div class="big">
+        <div class="tally">
+          <div class="label">tally</div>
+          <div class="value" id="tally">0</div>
+        </div>
+        <div class="dice">
+          <div class="die" id="d1">—</div>
+          <div class="die" id="d2">—</div>
+        </div>
+      </div>
+
+      <div class="row space-between">
+        <div>
+          <div class="label">active player</div>
+          <div class="value" id="active">—</div>
+          <div class="muted small">bank before or after rolling</div>
+        </div>
+        <div class="actions">
+          <button id="rollBtn" class="primary">roll</button>
+          <button id="bankBtn" class="danger">bank</button>
+        </div>
+      </div>
+
+      <div id="log" class="log" aria-live="polite"></div>
+
+      <h2>scoreboard</h2>
+      <div id="scoreboard" class="scoreboard"></div>
+
+      <div class="row space-between" style="margin-top:14px;">
+        <button id="nextRoundBtn" class="ghost" disabled>next round</button>
+        <div class="muted small" id="saveStatus">saved ✓</div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="./src/app.js"></script>
+</body>
+</html>
