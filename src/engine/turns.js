@@ -1,7 +1,7 @@
 import { pushLog, isRoundOver } from "./state.js";
 
 export function startTurn(game){
-  // every action (roll OR bank) is a full turn now
+  // called before each roll to track phase transitions
   game.turnCount += 1;
   game.hasRolledThisTurn = false;
 }
@@ -21,18 +21,30 @@ export function endTurn(game){
 }
 
 export function bankActivePlayer(game){
-  const idx = game.activeIdx;
+  bankPlayer(game, game.activeIdx);
+}
+
+export function bankOffTurn(game, idx){
+  bankPlayer(game, idx, { offTurn: true });
+}
+
+function bankPlayer(game, idx, { offTurn = false } = {}){
   const ps = game.roundStatus[idx];
   if (ps.done) return;
 
   const score = game.tally;
-  game.players[idx].rounds.push(score);
-  game.players[idx].total += score;
+  const player = game.players[idx];
+  player.rounds.push(score);
+  player.total += score;
   ps.done = true;
   ps.banked = true;
 
-  pushLog(game, `✅ ${game.players[idx].name} banked ${score}.`);
-  endTurn(game);
+  const note = offTurn ? " (off-turn)" : "";
+  pushLog(game, `✅ ${player.name} banked ${score}${note}.`);
+
+  if (!offTurn && idx === game.activeIdx){
+    endTurn(game);
+  }
 }
 
 export function bustActivePlayer(game){

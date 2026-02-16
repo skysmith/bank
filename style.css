@@ -190,16 +190,9 @@ button:disabled{ opacity:.5; cursor:not-allowed; }
   align-items:center;
   gap:10px;
 }
-.rounds{
-  display:flex;
-  gap:6px;
-  flex-wrap:wrap;
+.bank-btn{
   margin-top:10px;
-}
-.rpill{
-  font-size: 11px;
-  color: var(--muted);
-  border:1px solid rgba(35,40,58,.65);
-  padding:3px 7px;
-  border-radius:999px;
+  width:100%;
+  padding:8px 10px;
+  font-size:12px;
 }

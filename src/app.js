@@ -1,7 +1,7 @@
 import { rollDice } from "./engine/dice.js";
 import { makeGame, phaseLabel, phase, isRoundOver, isGameOver } from "./engine/state.js";
 import { applyRoll } from "./engine/rules.js";
-import { startTurn, bankActivePlayer, bustActivePlayer, maybeAdvanceRound, afterSafeRollPassTurn } from "./engine/turns.js";
+import { startTurn, bankActivePlayer, bankOffTurn, bustActivePlayer, maybeAdvanceRound, afterSafeRollPassTurn } from "./engine/turns.js";
 import { loadSave, save, clearSave } from "./storage/local.js";
 
 import { makeCode, createGameRow, fetchGameRow, updateGameRow, subscribeToGame } from "./net/games.js";
@@ -62,11 +62,24 @@ let session = {
 let pendingOnlineAction = false;
 
 // ---------- helpers ----------
+const randomId = () => (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2));
+
+function ensurePlayerIds(g){
+  if (!g || !Array.isArray(g.players)) return;
+  g.players = g.players.map(p => ({ ...p, id: p.id || randomId() }));
+}
+
+function findPlayerIndexById(id, g = game){
+  if (!g || !Array.isArray(g.players)) return -1;
+  return g.players.findIndex(p => p.id === id);
+}
+
 function setSaveStatus(txt){ if (saveStatus) saveStatus.textContent = txt; }
 
 function escapeHtml(s){
-  return (s || "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+  return (s || "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[c]));
 }
+
 
 function showGame(){
   setupScreen.style.display = "none";
@@ -100,11 +113,24 @@ function canIAct(){
   return activeP.id === me;
 }
 
-function canIBank(){
+function canUseActiveBank(){
   if (!game) return false;
-  if (session.mode !== "online") return true; // local behaves same
+  if (session.mode !== "online") return true;
   if (pendingOnlineAction) return false;
-  return true; // anyone can bank online
+  const activeP = game.players?.[game.activeIdx];
+  if (!activeP) return false;
+  return activeP.id === session.playerId;
+}
+
+function canIBankPlayer(player){
+  if (!game || !player) return false;
+  const idx = findPlayerIndexById(player.id);
+  if (idx === -1) return false;
+  if (game.roundStatus[idx]?.done) return false;
+
+  if (session.mode !== "online") return true;
+  if (pendingOnlineAction) return false;
+  return session.playerId === player.id;
 }
 
 function setOnlineStatus(msg){
@@ -153,6 +179,9 @@ function renderGame(){
 
   logEl.innerHTML = (game.log || []).slice(-12).map(line => `<div>${escapeHtml(line)}</div>`).join("");
 
+  const over = isGameOver(game);
+  const iCanAct = canIAct();
+
   scoreboard.innerHTML = "";
   game.players.forEach((p, idx) => {
     const card = document.createElement("div");
@@ -172,14 +201,21 @@ function renderGame(){
         <div><strong>${p.total}</strong></div>
       </div>
     `;
+
+    if (!status.done && !over){
+      const bankNow = document.createElement("button");
+      bankNow.textContent = "Bank now";
+      bankNow.className = "bank-btn";
+      bankNow.disabled = !canIBankPlayer(p);
+      bankNow.addEventListener("click", () => requestBankForPlayer(p.id));
+      card.appendChild(bankNow);
+    }
+
     scoreboard.appendChild(card);
   });
 
-  const over = isGameOver(game);
-  const iCanAct = canIAct();
-
 rollBtn.disabled = over || !iCanAct;
-bankBtn.disabled = over || !canIBank();
+bankBtn.disabled = over || !canUseActiveBank();
   nextRoundBtn.disabled = !isRoundOver(game) || over || (session.mode === "online" && !iCanAct);
 
   // local save only in local mode
@@ -196,8 +232,7 @@ function startNewLocalGame(players){
   pendingOnlineAction = false;
 
   game = makeGame(players);
-  // attach ids for consistency
-  game.players = game.players.map(p => ({ ...p, id: crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2) }));
+  ensurePlayerIds(game);
   game.log.push("🟩 game started.");
   showGame();
   renderGame();
@@ -212,6 +247,7 @@ function resumeSaved(){
   pendingOnlineAction = false;
 
   game = saved;
+  ensurePlayerIds(game);
   game.log = game.log || [];
   showGame();
   renderGame();
@@ -248,6 +284,7 @@ async function createOnlineGame(){
 
   attachOnlineSubscription(code);
   game = g;
+  ensurePlayerIds(game);
 
   showGame();
   renderGame();
@@ -280,6 +317,7 @@ async function joinOnlineGame(){
   pendingOnlineAction = false;
 
   game = row.state;
+  ensurePlayerIds(game);
   game.log = game.log || [];
   game.online = { code };
 
@@ -296,6 +334,7 @@ async function joinOnlineGame(){
       try{
         const updated = await updateGameRow(code, next, row.version);
         game = updated.state;
+  ensurePlayerIds(game);
         session.version = updated.version;
       }catch(e){
         console.warn("join update conflict (ok)", e);
@@ -319,6 +358,7 @@ function attachOnlineSubscription(code){
     if (typeof newRow.version === "number" && newRow.version >= session.version){
       session.version = newRow.version;
       game = newRow.state;
+      ensurePlayerIds(game);
       game.log = game.log || [];
       game.online = { code };
 
@@ -330,7 +370,8 @@ function attachOnlineSubscription(code){
   });
 }
 
-async function pushOnlineUpdate(mutatorFn){
+async function pushOnlineUpdate(mutatorFn, opts = {}){
+  const { requireTurn = true } = opts;
   if (pendingOnlineAction) return;
 
   pendingOnlineAction = true;
@@ -340,10 +381,16 @@ async function pushOnlineUpdate(mutatorFn){
   const expectedVersion = session.version;
 
   const next = structuredClone(game);
+  ensurePlayerIds(next);
 
-  // hard guard: even if someone spams, we refuse if it’s not your turn
-  const ap = next.players?.[next.activeIdx];
-  if (!ap || ap.id !== session.playerId){
+  if (requireTurn){
+    const ap = next.players?.[next.activeIdx];
+    if (!ap || ap.id !== session.playerId){
+      pendingOnlineAction = false;
+      renderGame();
+      return;
+    }
+  }else if (!session.playerId){
     pendingOnlineAction = false;
     renderGame();
     return;
@@ -355,6 +402,7 @@ async function pushOnlineUpdate(mutatorFn){
     const updated = await updateGameRow(code, next, expectedVersion);
     session.version = updated.version;
     game = updated.state;
+    ensurePlayerIds(game);
     game.online = { code };
 
     pendingOnlineAction = false;
@@ -365,6 +413,7 @@ async function pushOnlineUpdate(mutatorFn){
       const row = await fetchGameRow(code);
       session.version = row.version;
       game = row.state;
+      ensurePlayerIds(game);
       game.online = { code };
     } finally {
       pendingOnlineAction = false;
@@ -398,10 +447,46 @@ function localRoll(){
   maybeAdvanceRound(game);
 }
 
-function localBank(){
-  startTurn(game);
-  bankActivePlayer(game);
-  maybeAdvanceRound(game);
+async function requestBankForPlayer(playerId, { requireActive = false } = {}){
+  if (!game || isGameOver(game)) return;
+  ensurePlayerIds(game);
+  const idx = findPlayerIndexById(playerId);
+  if (idx === -1) return;
+  const status = game.roundStatus[idx];
+  if (!status || status.done) return;
+
+  if (requireActive && idx !== game.activeIdx) return;
+
+  const isActive = idx === game.activeIdx;
+
+  if (session.mode === "online"){
+    if (!session.playerId || session.playerId !== playerId) return;
+    if (pendingOnlineAction) return;
+
+    await pushOnlineUpdate((g) => {
+      ensurePlayerIds(g);
+      const gi = findPlayerIndexById(playerId, g);
+      if (gi === -1) return;
+      const gst = g.roundStatus[gi];
+      if (!gst || gst.done) return;
+
+      if (gi === g.activeIdx){
+        bankActivePlayer(g);
+      }else{
+        bankOffTurn(g, gi);
+      }
+      maybeAdvanceRound(g);
+    }, { requireTurn: isActive });
+  }else{
+    if (isActive){
+      bankActivePlayer(game);
+    }else{
+      bankOffTurn(game, idx);
+    }
+    maybeAdvanceRound(game);
+    renderGame();
+    tickAI();
+  }
 }
 
 async function onRoll(){
@@ -441,19 +526,9 @@ async function onRoll(){
 
 async function onBank(){
   if (!game || isGameOver(game)) return;
-  if (!canIBank()) return;  // bank is now allowed for anyone online
-
-  if (session.mode === "online"){
-    await pushOnlineUpdate((g) => {
-      startTurn(g);
-      bankActivePlayer(g);
-      maybeAdvanceRound(g);
-    });
-  }else{
-    localBank();
-    renderGame();
-    tickAI();
-  }
+  const activePlayer = game.players[game.activeIdx];
+  if (!activePlayer) return;
+  await requestBankForPlayer(activePlayer.id, { requireActive: true });
 }
 
 async function onNextRound(){
