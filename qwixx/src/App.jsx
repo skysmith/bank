@@ -23,8 +23,8 @@ function Sheet({ sheet, onMark, canMark, locks }){
           <span className="row-label" style={{ color: colorHex[row.color] }}>{row.color}</span>
           {row.numbers.map((num, idx) => {
             const crossed = sheet[row.color].includes(num)
-            const legal = canMark(row.color, num)
             const locked = locks[row.color]
+            const legal = !locked && canMark(row.color, num)
             return (
               <button
                 key={num}
@@ -76,15 +76,18 @@ function App() {
   const [locks, setLocks] = useState({ red:false, yellow:false, green:false, blue:false })
   const [penalties, setPenalties] = useState(0)
   const [roll, setRoll] = useState(null)
+  const [turnUsage, setTurnUsage] = useState({ white:false, color:false })
 
-  const diceAllows = (color, number) => {
-    if (!roll) return false
-    if (number === roll.whiteSum) return true
-    return roll.combos.some((combo) => combo.color === color && combo.sum === number)
+  const getMarkType = (color, number) => {
+    if (!roll) return null
+    if (!turnUsage.white && number === roll.whiteSum) return 'white'
+    if (!turnUsage.color && roll.combos.some((combo) => combo.color === color && combo.sum === number)) return 'color'
+    return null
   }
 
   const canMark = (color, number) => {
-    if (!diceAllows(color, number)) return false
+    const markType = getMarkType(color, number)
+    if (!markType) return false
     if (locks[color]) return false
     if (sheet[color].includes(number)) return false
     const row = rows.find(r => r.color === color)
@@ -97,10 +100,10 @@ function App() {
   }
 
   const onMark = (color, number) => {
-    if (!canMark(color, number)) return
-    setSheet((prev) => {
-      return { ...prev, [color]: [...prev[color], number] }
-    })
+    const markType = getMarkType(color, number)
+    if (!markType) return
+    setSheet((prev) => ({ ...prev, [color]: [...prev[color], number] }))
+    setTurnUsage((prev) => ({ ...prev, [markType]: true }))
     setLocks((prev) => {
       const row = rows.find(r => r.color === color)
       const isEndNumber = row.numbers[row.numbers.length - 1] === number
@@ -120,6 +123,7 @@ function App() {
     }
     const whiteSum = white[0] + white[1]
     setRoll({ white, colors, combos, whiteSum })
+    setTurnUsage({ white:false, color:false })
   }
 
   const rowScore = scoreRow(sheet.red.length) + scoreRow(sheet.yellow.length) + scoreRow(sheet.green.length) + scoreRow(sheet.blue.length)
@@ -150,7 +154,7 @@ function App() {
           <button className="penalty-btn" onClick={() => setPenalties(Math.min(4, penalties + 1))}>+ penalty</button>
           <button className="penalty-btn" onClick={() => setPenalties(Math.max(0, penalties - 1))}>-</button>
         </div>
-        <p>Total: {totalScore - penalties * 5}</p>
+        <p>Total: {totalScore}</p>
       </section>
     </div>
   )
