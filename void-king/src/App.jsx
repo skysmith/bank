@@ -38,6 +38,51 @@ const features = [
   }
 ]
 
+
+function OnlineControls(){
+  const { online, hostOnlineGame, joinOnlineGame, leaveOnlineGame } = useGameStore()
+  const [hostName, setHostName] = useState('')
+  const [joinName, setJoinName] = useState('')
+  const [code, setCode] = useState('')
+
+  const handleHost = () => {
+    if (!hostName.trim()) return
+    hostOnlineGame(hostName.trim())
+  }
+
+  const handleJoin = () => {
+    if (!joinName.trim() || !code.trim()) return
+    joinOnlineGame(joinName.trim(), code.trim().toUpperCase())
+  }
+
+  return (
+    <section className="card online">
+      <h2>Online lobby</h2>
+      {!online.code ? (
+        <div className="online-grid">
+          <div>
+            <p className="muted">Host a new room.</p>
+            <input type="text" placeholder="Your name" value={hostName} onChange={(e) => setHostName(e.target.value)} />
+            <button className="btn primary" onClick={handleHost}>Create room</button>
+          </div>
+          <div>
+            <p className="muted">Join using a room code.</p>
+            <input type="text" placeholder="Your name" value={joinName} onChange={(e) => setJoinName(e.target.value)} />
+            <input type="text" placeholder="Room code" value={code} onChange={(e) => setCode(e.target.value)} />
+            <button className="btn ghost" onClick={handleJoin}>Join room</button>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <p className="muted">Connected to room <strong>{online.code}</strong></p>
+          <p>Share <code>{window.location.origin}/void-king/index.html?code={online.code}</code> with friends.</p>
+          <button className="btn ghost" onClick={leaveOnlineGame}>Leave room</button>
+        </div>
+      )}
+    </section>
+  )
+}
+
 const timeline = [
   { phase: 'Spec & Theme', date: 'Week 1', items: ['Finalize faction mapping', 'Card art explorations', 'Rules doc'] },
   { phase: 'Engine', date: 'Week 2', items: ['Deck + shuffle', 'Bidding validator', 'Trick resolver & scoring'] },
@@ -166,6 +211,8 @@ function App() {
           ))}
         </div>
       </section>
+
+      <OnlineControls />
 
       <section className="card suits">
         <h2>Faction Mapping</h2>

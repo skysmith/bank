@@ -49,3 +49,22 @@ export function createInitialGame(playerNames: string[]): GameState {
     scoreLog: []
   }
 }
+
+
+export function addPlayer(game: GameState, name: string, id: string){
+  if (game.players.some(p => p.id === id)) return game
+  return {
+    ...game,
+    players: [
+      ...game.players,
+      {
+        id,
+        name,
+        bid: null,
+        tricksWon: 0,
+        hand: [],
+        total: 0
+      }
+    ]
+  }
+}
