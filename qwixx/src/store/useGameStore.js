@@ -14,6 +14,8 @@ const createSoloState = () => {
     code: null,
     playerId: soloId,
     name: 'Solo',
+    activePlayerId: soloId,
+    currentRollerId: soloId,
     players: [soloPlayer],
     roll: null,
     turnUsage: { white: false, color: false },
@@ -35,10 +37,10 @@ const getPlayer = (state) => state.players.find((p) => p.id === state.playerId)
 
 const getMarkType = (state, color, number, playerId) => {
   if (!state.roll) return null
-  const isActive = playerId === state.playerId
   const hasWhite = state.whiteMarks?.includes(playerId)
   if (!hasWhite && number === state.roll.whiteSum) return 'white'
-  if (isActive && !state.turnUsage.color && state.roll.combos.some((combo) => combo.color === color && combo.sum === number)) return 'color'
+  const isRoller = playerId === state.currentRollerId
+  if (isRoller && !state.turnUsage.color && state.roll.combos.some((combo) => combo.color === color && combo.sum === number)) return 'color'
   return null
 }
 
@@ -53,7 +55,9 @@ const makeEnvelope = (state) => ({
   gameOver: state.gameOver,
   status: state.status,
   whiteMarks: state.whiteMarks,
-  nextRollAllowedAt: state.nextRollAllowedAt
+  nextRollAllowedAt: state.nextRollAllowedAt,
+  activePlayerId: state.activePlayerId,
+  currentRollerId: state.currentRollerId
 })
 
 export const useGameStore = create((set, get) => ({
@@ -82,6 +86,7 @@ export const useGameStore = create((set, get) => ({
   markNumber: (color, number) => {
     const state = get()
     if (state.gameOver) return
+    if (state.playerId !== state.activePlayerId) return
     const playerIdx = getPlayerIndex(state.players, state.playerId)
     if (playerIdx === -1) return
     const player = state.players[playerIdx]
@@ -117,6 +122,7 @@ export const useGameStore = create((set, get) => ({
   rollDice: () => {
     const state = get()
     if (state.gameOver) return
+    if (state.playerId !== state.activePlayerId) return
     const playerIdx = getPlayerIndex(state.players, state.playerId)
     if (playerIdx === -1) return
     let players = [...state.players]
@@ -139,7 +145,10 @@ export const useGameStore = create((set, get) => ({
     const roll = { white, colors, combos, whiteSum: white[0] + white[1] }
 
     const nextRollAllowedAt = Date.now() + 3000
-    set({ roll, turnUsage: { white: false, color: false }, players, gameOver, whiteMarks: [], nextRollAllowedAt })
+    const nextIdx = players.length ? (playerIdx + 1) % players.length : playerIdx
+    const nextActive = players[nextIdx]?.id || state.activePlayerId
+
+    set({ roll, turnUsage: { white: false, color: false }, players, gameOver, whiteMarks: [], nextRollAllowedAt, currentRollerId: state.playerId, activePlayerId: nextActive })
     get().syncRemote()
   },
 
@@ -167,7 +176,7 @@ export const useGameStore = create((set, get) => ({
     const code = Math.random().toString(36).slice(2, 7).toUpperCase()
     const playerId = makeId()
     const player = makePlayer(playerId, name)
-    const envelope = { ...baseState(), code, playerId, name, players: [player] }
+    const envelope = { ...baseState(), code, playerId, name, players: [player], activePlayerId: playerId, currentRollerId: playerId }
     await supabase.from('qwixx_games').insert({ code, state: envelope })
     set(envelope)
     get().subscribe(code)
