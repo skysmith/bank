@@ -15,7 +15,7 @@ const colorHex = {
   blue: '#3b82f6'
 }
 
-function Sheet({ sheet, onMark, canMark }){
+function Sheet({ sheet, onMark, canMark, locks }){
   return (
     <div className="sheet">
       {rows.map((row) => (
@@ -24,12 +24,13 @@ function Sheet({ sheet, onMark, canMark }){
           {row.numbers.map((num, idx) => {
             const crossed = sheet[row.color].includes(num)
             const legal = canMark(row.color, num)
+            const locked = locks[row.color]
             return (
               <button
                 key={num}
-                className={`cell ${crossed ? 'crossed' : ''} ${legal ? 'legal' : 'illegal'}`}
+                className={`cell ${crossed ? 'crossed' : ''} ${legal ? 'legal' : 'illegal'} ${locked ? 'locked' : ''}`}
                 onClick={() => legal && onMark(row.color, num)}
-                disabled={!legal}
+                disabled={!legal || locked}
               >
                 {num}
               </button>
@@ -72,6 +73,7 @@ function scoreRow(crosses){
 
 function App() {
   const [sheet, setSheet] = useState({ red: [], yellow: [], green: [], blue: [] })
+  const [locks, setLocks] = useState({ red:false, yellow:false, green:false, blue:false })
   const [roll, setRoll] = useState(null)
 
   const diceAllows = (color, number) => {
@@ -82,6 +84,7 @@ function App() {
 
   const canMark = (color, number) => {
     if (!diceAllows(color, number)) return false
+    if (locks[color]) return false
     if (sheet[color].includes(number)) return false
     const row = rows.find(r => r.color === color)
     const idx = row.numbers.indexOf(number)
@@ -96,6 +99,13 @@ function App() {
     if (!canMark(color, number)) return
     setSheet((prev) => {
       return { ...prev, [color]: [...prev[color], number] }
+    })
+    setLocks((prev) => {
+      const row = rows.find(r => r.color === color)
+      const isEndNumber = row.numbers[row.numbers.length - 1] === number
+      const crosses = sheet[color].length + 1
+      if (!(isEndNumber && crosses >= 5)) return prev
+      return { ...prev, [color]: true }
     })
   }
 
@@ -124,7 +134,7 @@ function App() {
       </header>
 
       <DiceTray roll={roll} onRoll={onRoll} />
-      <Sheet sheet={sheet} onMark={onMark} canMark={canMark} />
+      <Sheet sheet={sheet} onMark={onMark} canMark={canMark} locks={locks} />
 
       <section className="card">
         <h3>Score preview</h3>
