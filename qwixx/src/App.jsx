@@ -77,6 +77,7 @@ function App() {
   const [penalties, setPenalties] = useState(0)
   const [roll, setRoll] = useState(null)
   const [turnUsage, setTurnUsage] = useState({ white:false, color:false })
+  const [gameOver, setGameOver] = useState(false)
 
   const getMarkType = (color, number) => {
     if (!roll) return null
@@ -100,6 +101,7 @@ function App() {
   }
 
   const onMark = (color, number) => {
+    if (gameOver) return
     const markType = getMarkType(color, number)
     if (!markType) return
     setSheet((prev) => ({ ...prev, [color]: [...prev[color], number] }))
@@ -109,13 +111,21 @@ function App() {
       const isEndNumber = row.numbers[row.numbers.length - 1] === number
       const crosses = sheet[color].length + 1
       if (!(isEndNumber && crosses >= 5)) return prev
-      return { ...prev, [color]: true }
+      const newLocks = { ...prev, [color]: true }
+      const totalLocks = Object.values(newLocks).filter(Boolean).length
+      if (totalLocks >= 2) setGameOver(true)
+      return newLocks
     })
   }
 
   const onRoll = () => {
+    if (gameOver) return
     if (turnUsage.white === false && turnUsage.color === false && roll){
-      setPenalties((prev) => Math.min(4, prev + 1))
+      setPenalties((prev) => {
+        const next = Math.min(4, prev + 1)
+        if (next >= 4) setGameOver(true)
+        return next
+      })
     }
     const white = [1,2].map(() => Math.ceil(Math.random()*6))
     const colors = [1,2,3,4].map(() => Math.ceil(Math.random()*6))
@@ -146,7 +156,7 @@ function App() {
       <Sheet sheet={sheet} onMark={onMark} canMark={canMark} locks={locks} />
 
       <section className="card">
-        <h3>Score preview</h3>
+        <h3>Score preview {gameOver ? '(complete)' : ''}</h3>
         <ul>
           {rows.map((row) => (
             <li key={row.color}><strong style={{ color: colorHex[row.color] }}>{row.color}</strong>: {scoreRow(sheet[row.color].length)}</li>
