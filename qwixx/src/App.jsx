@@ -74,6 +74,7 @@ function scoreRow(crosses){
 function App() {
   const [sheet, setSheet] = useState({ red: [], yellow: [], green: [], blue: [] })
   const [locks, setLocks] = useState({ red:false, yellow:false, green:false, blue:false })
+  const [penalties, setPenalties] = useState(0)
   const [roll, setRoll] = useState(null)
 
   const diceAllows = (color, number) => {
@@ -121,7 +122,8 @@ function App() {
     setRoll({ white, colors, combos, whiteSum })
   }
 
-  const totalScore = scoreRow(sheet.red.length) + scoreRow(sheet.yellow.length) + scoreRow(sheet.green.length) + scoreRow(sheet.blue.length)
+  const rowScore = scoreRow(sheet.red.length) + scoreRow(sheet.yellow.length) + scoreRow(sheet.green.length) + scoreRow(sheet.blue.length)
+  const totalScore = rowScore - penalties * 5
 
   return (
     <div className="page">
@@ -143,7 +145,12 @@ function App() {
             <li key={row.color}><strong style={{ color: colorHex[row.color] }}>{row.color}</strong>: {scoreRow(sheet[row.color].length)}</li>
           ))}
         </ul>
-        <p>Total: {totalScore}</p>
+        <div className="penalties">
+          <span>Penalties: {penalties} ( -{penalties * 5} )</span>
+          <button className="penalty-btn" onClick={() => setPenalties(Math.min(4, penalties + 1))}>+ penalty</button>
+          <button className="penalty-btn" onClick={() => setPenalties(Math.max(0, penalties - 1))}>-</button>
+        </div>
+        <p>Total: {totalScore - penalties * 5}</p>
       </section>
     </div>
   )

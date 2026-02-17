@@ -21,3 +21,6 @@ header{margin-bottom:1.5rem;}
 
 .cell.locked{opacity:.2;position:relative;}
 .cell.locked::after{content:"🔒";position:absolute;right:6px;top:4px;font-size: .8rem;}
+
+.penalties{display:flex;gap:.5rem;align-items:center;margin-top:1rem;}
+.penalty-btn{border:1px dashed rgba(255,255,255,.4);background:transparent;padding:.3rem .6rem;border-radius:8px;color:#fff;}
