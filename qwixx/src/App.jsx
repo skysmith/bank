@@ -4,14 +4,18 @@ import { rows, colorHex } from './constants'
 import { useGameStore } from './store/useGameStore'
 
 function Sheet(){
-  const { sheet, locks, markNumber, canMark } = useGameStore()
+  const player = useGameStore((state) => state.players.find(p => p.id === state.playerId))
+  const locks = useGameStore((state) => state.locks)
+  const markNumber = useGameStore((state) => state.markNumber)
+  const canMark = useGameStore((state) => state.canMark)
+  if (!player) return null
   return (
     <div className="sheet">
       {rows.map((row) => (
         <div className="sheet-row" key={row.color}>
           <span className="row-label" style={{ color: colorHex[row.color] }}>{row.color}</span>
           {row.numbers.map((num) => {
-            const crossed = sheet[row.color].includes(num)
+            const crossed = player.sheet[row.color].includes(num)
             const locked = locks[row.color]
             const legal = !locked && canMark(row.color, num)
             return (
@@ -56,21 +60,44 @@ function DiceTray(){
   )
 }
 
+function PlayerList(){
+  const players = useGameStore((state) => state.players)
+  return (
+    <section className="card">
+      <h3>Players</h3>
+      <ul className="player-list">
+        {players.map((p) => {
+          const rowScore = rows.reduce((total, row) => total + scoreRow(p.sheet[row.color].length), 0)
+          const total = rowScore - p.penalties * 5
+          return (
+            <li key={p.id}>
+              <strong>{p.name}</strong> · {total} pts · penalties: {p.penalties}
+            </li>
+          )
+        })}
+      </ul>
+    </section>
+  )
+}
+
 function ScoreCard(){
-  const { sheet, penalties, adjustPenalty, gameOver } = useGameStore()
-  const rowScore = rows.reduce((total, row) => total + scoreRow(sheet[row.color].length), 0)
-  const total = rowScore - penalties * 5
+  const player = useGameStore((state) => state.players.find(p => p.id === state.playerId))
+  const adjustPenalty = useGameStore((state) => state.adjustPenalty)
+  const gameOver = useGameStore((state) => state.gameOver)
+  if (!player) return null
+  const rowScore = rows.reduce((total, row) => total + scoreRow(player.sheet[row.color].length), 0)
+  const total = rowScore - player.penalties * 5
 
   return (
     <section className="card">
-      <h3>Score preview {gameOver ? '(complete)' : ''}</h3>
+      <h3>{player.name}'s sheet {gameOver ? '(complete)' : ''}</h3>
       <ul>
         {rows.map((row) => (
-          <li key={row.color}><strong style={{ color: colorHex[row.color] }}>{row.color}</strong>: {scoreRow(sheet[row.color].length)}</li>
+          <li key={row.color}><strong style={{ color: colorHex[row.color] }}>{row.color}</strong>: {scoreRow(player.sheet[row.color].length)}</li>
         ))}
       </ul>
       <div className="penalties">
-        <span>Penalties: {penalties} ( -{penalties * 5} )</span>
+        <span>Penalties: {player.penalties} ( -{player.penalties * 5} )</span>
         <button className="penalty-btn" onClick={() => adjustPenalty(1)}>+ penalty</button>
         <button className="penalty-btn" onClick={() => adjustPenalty(-1)}>-</button>
       </div>
@@ -136,6 +163,7 @@ function App() {
       <DiceTray />
       <Sheet />
       <ScoreCard />
+      <PlayerList />
     </div>
   )
 }

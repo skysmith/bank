@@ -28,3 +28,7 @@ header{margin-bottom:1.5rem;}
 .online-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;margin-top:1rem;}
 .online-grid input{width:100%;margin-bottom:.5rem;padding:.5rem .8rem;border-radius:12px;border:1px solid rgba(255,255,255,.2);background:rgba(0,0,0,.2);color:#fff;}
 .status{margin-top:.4rem;color:#fca5a5;}
+
+.player-list{list-style:none;padding:0;margin:0;}
+.player-list li{padding:.3rem 0;border-bottom:1px solid rgba(255,255,255,.1);}
+.player-list li:last-child{border-bottom:none;}

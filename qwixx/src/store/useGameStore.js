@@ -5,22 +5,31 @@ import { rows } from '../constants'
 const emptySheet = () => ({ red: [], yellow: [], green: [], blue: [] })
 const defaultLocks = () => ({ red: false, yellow: false, green: false, blue: false })
 
-const baseState = () => ({
-  code: null,
-  playerId: null,
-  name: '',
-  players: [],
-  sheet: emptySheet(),
-  locks: defaultLocks(),
-  penalties: 0,
-  roll: null,
-  turnUsage: { white: false, color: false },
-  gameOver: false,
-  status: '',
-  channel: null
-})
+const makePlayer = (id, name) => ({ id, name, sheet: emptySheet(), locks: defaultLocks(), penalties: 0 })
+
+const createSoloState = () => {
+  const soloId = makeId()
+  const soloPlayer = makePlayer(soloId, 'Solo')
+  return {
+    code: null,
+    playerId: soloId,
+    name: 'Solo',
+    players: [soloPlayer],
+    roll: null,
+    turnUsage: { white: false, color: false },
+    gameOver: false,
+    status: '',
+    channel: null,
+    locks: defaultLocks()
+  }
+}
+
+const baseState = () => createSoloState()
 
 const makeId = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2))
+
+const getPlayerIndex = (players, id) => players.findIndex((p) => p.id === id)
+const getPlayer = (state) => state.players.find((p) => p.id === state.playerId)
 
 const getMarkType = (state, color, number) => {
   if (!state.roll) return null
@@ -34,9 +43,7 @@ const makeEnvelope = (state) => ({
   playerId: state.playerId,
   name: state.name,
   players: state.players,
-  sheet: state.sheet,
   locks: state.locks,
-  penalties: state.penalties,
   roll: state.roll,
   turnUsage: state.turnUsage,
   gameOver: state.gameOver,
@@ -50,16 +57,18 @@ export const useGameStore = create((set, get) => ({
 
   canMark: (color, number) => {
     const state = get()
+    const player = getPlayer(state)
+    if (!player) return false
     if (state.gameOver) return false
     if (state.locks[color]) return false
-    if (state.sheet[color].includes(number)) return false
+    if (player.sheet[color].includes(number)) return false
     const markType = getMarkType(state, color, number)
     if (!markType) return false
     const row = rows.find((r) => r.color === color)
     const idx = row.numbers.indexOf(number)
     if (idx === -1) return false
-    if (state.sheet[color].length === 0) return true
-    const last = state.sheet[color][state.sheet[color].length - 1]
+    if (player.sheet[color].length === 0) return true
+    const last = player.sheet[color][player.sheet[color].length - 1]
     const lastIdx = row.numbers.indexOf(last)
     return idx > lastIdx
   },
@@ -67,35 +76,49 @@ export const useGameStore = create((set, get) => ({
   markNumber: (color, number) => {
     const state = get()
     if (state.gameOver) return
+    const playerIdx = getPlayerIndex(state.players, state.playerId)
+    if (playerIdx === -1) return
+    const player = state.players[playerIdx]
+    if (player.sheet[color].includes(number)) return
     const markType = getMarkType(state, color, number)
     if (!markType) return
 
-    const newSheet = { ...state.sheet, [color]: [...state.sheet[color], number] }
+    const updatedPlayer = {
+      ...player,
+      sheet: { ...player.sheet, [color]: [...player.sheet[color], number] }
+    }
+    const players = [...state.players]
+    players[playerIdx] = updatedPlayer
+
     const newTurnUsage = { ...state.turnUsage, [markType]: true }
     let newLocks = state.locks
     let gameOver = state.gameOver
 
     const row = rows.find((r) => r.color === color)
     const isEndNumber = row.numbers[row.numbers.length - 1] === number
-    const crosses = newSheet[color].length
+    const crosses = updatedPlayer.sheet[color].length
     if (isEndNumber && crosses >= 5) {
       newLocks = { ...state.locks, [color]: true }
       const lockCount = Object.values(newLocks).filter(Boolean).length
       if (lockCount >= 2) gameOver = true
     }
 
-    set({ sheet: newSheet, turnUsage: newTurnUsage, locks: newLocks, gameOver }, false)
+    set({ players, turnUsage: newTurnUsage, locks: newLocks, gameOver }, false)
     get().syncRemote()
   },
 
   rollDice: () => {
     const state = get()
     if (state.gameOver) return
-    let penalties = state.penalties
+    const playerIdx = getPlayerIndex(state.players, state.playerId)
+    if (playerIdx === -1) return
+    let players = [...state.players]
     let gameOver = state.gameOver
 
     if (state.roll && !state.turnUsage.white && !state.turnUsage.color) {
-      penalties = Math.min(4, penalties + 1)
+      const player = players[playerIdx]
+      const penalties = Math.min(4, player.penalties + 1)
+      players[playerIdx] = { ...player, penalties }
       if (penalties >= 4) gameOver = true
     }
 
@@ -108,15 +131,20 @@ export const useGameStore = create((set, get) => ({
     }
     const roll = { white, colors, combos, whiteSum: white[0] + white[1] }
 
-    set({ roll, turnUsage: { white: false, color: false }, penalties, gameOver })
+    set({ roll, turnUsage: { white: false, color: false }, players, gameOver })
     get().syncRemote()
   },
 
   adjustPenalty: (delta) => {
     set((state) => {
-      let penalties = Math.min(4, Math.max(0, state.penalties + delta))
+      const idx = getPlayerIndex(state.players, state.playerId)
+      if (idx === -1) return state
+      const players = [...state.players]
+      const player = players[idx]
+      const penalties = Math.min(4, Math.max(0, player.penalties + delta))
+      players[idx] = { ...player, penalties }
       const gameOver = penalties >= 4 ? true : state.gameOver
-      return { penalties, gameOver }
+      return { players, gameOver }
     })
     get().syncRemote()
   },
@@ -130,7 +158,8 @@ export const useGameStore = create((set, get) => ({
   hostGame: async (name) => {
     const code = Math.random().toString(36).slice(2, 7).toUpperCase()
     const playerId = makeId()
-    const envelope = { ...baseState(), code, playerId, name, players: [{ id: playerId, name }] }
+    const player = makePlayer(playerId, name)
+    const envelope = { ...baseState(), code, playerId, name, players: [player] }
     await supabase.from('qwixx_games').insert({ code, state: envelope })
     set(envelope)
     get().subscribe(code)
@@ -145,7 +174,7 @@ export const useGameStore = create((set, get) => ({
     }
     const envelope = { ...data.state }
     if (!envelope.players.some((p) => p.id === playerId)) {
-      envelope.players = [...(envelope.players || []), { id: playerId, name }]
+      envelope.players = [...(envelope.players || []), makePlayer(playerId, name)]
     }
     envelope.code = code
     envelope.playerId = playerId
