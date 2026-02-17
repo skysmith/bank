@@ -15,7 +15,7 @@ const colorHex = {
   blue: '#3b82f6'
 }
 
-function Sheet({ sheet, onMark }){
+function Sheet({ sheet, onMark, canMark }){
   return (
     <div className="sheet">
       {rows.map((row) => (
@@ -72,17 +72,34 @@ function App() {
   const [sheet, setSheet] = useState({ red: [], yellow: [], green: [], blue: [] })
   const [roll, setRoll] = useState(null)
 
+  const canMark = (color, number) => {
+    if (!roll) return false
+    if (sheet[color].includes(number)) return false
+    const row = rows.find(r => r.color === color)
+    const idx = row.numbers.indexOf(number)
+    if (idx === -1) return false
+    if (sheet[color].length === 0) return true
+    const last = sheet[color][sheet[color].length - 1]
+    const lastIdx = row.numbers.indexOf(last)
+    return idx > lastIdx
+  }
+
   const onMark = (color, number) => {
+    if (!canMark(color, number)) return
     setSheet((prev) => {
-      if (prev[color].includes(number)) return prev
-      return { ...prev, [color]: [...prev[color], number].sort((a,b) => a-b) }
+      return { ...prev, [color]: [...prev[color], number] }
     })
   }
 
   const onRoll = () => {
-    const white = [1,2].map(() => Math.ceil(Math.random()*6))
+const white = [1,2].map(() => Math.ceil(Math.random()*6))
     const colors = [1,2,3,4].map(() => Math.ceil(Math.random()*6))
-    setRoll({ white, colors })
+    const combos = []
+    for (let i = 0; i < colors.length; i++){
+      combos.push({ color: rows[i+0].color, sum: white[0] + colors[i] })
+      combos.push({ color: rows[i+0].color, sum: white[1] + colors[i] })
+    }
+    setRoll({ white, colors, combos })
   }
 
   const totalScore = scoreRow(sheet.red.length) + scoreRow(sheet.yellow.length) + scoreRow(sheet.green.length) + scoreRow(sheet.blue.length)
@@ -98,7 +115,7 @@ function App() {
       </header>
 
       <DiceTray roll={roll} onRoll={onRoll} />
-      <Sheet sheet={sheet} onMark={onMark} />
+      <Sheet sheet={sheet} onMark={onMark} canMark={canMark} />
 
       <section className="card">
         <h3>Score preview</h3>
