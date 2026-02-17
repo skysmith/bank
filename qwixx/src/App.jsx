@@ -23,11 +23,13 @@ function Sheet({ sheet, onMark, canMark }){
           <span className="row-label" style={{ color: colorHex[row.color] }}>{row.color}</span>
           {row.numbers.map((num, idx) => {
             const crossed = sheet[row.color].includes(num)
+            const legal = canMark(row.color, num)
             return (
               <button
                 key={num}
-                className={`cell ${crossed ? 'crossed' : ''}`}
-                onClick={() => onMark(row.color, num)}
+                className={`cell ${crossed ? 'crossed' : ''} ${legal ? 'legal' : 'illegal'}`}
+                onClick={() => legal && onMark(row.color, num)}
+                disabled={!legal}
               >
                 {num}
               </button>
@@ -72,8 +74,14 @@ function App() {
   const [sheet, setSheet] = useState({ red: [], yellow: [], green: [], blue: [] })
   const [roll, setRoll] = useState(null)
 
-  const canMark = (color, number) => {
+  const diceAllows = (color, number) => {
     if (!roll) return false
+    if (number === roll.whiteSum) return true
+    return roll.combos.some((combo) => combo.color === color && combo.sum === number)
+  }
+
+  const canMark = (color, number) => {
+    if (!diceAllows(color, number)) return false
     if (sheet[color].includes(number)) return false
     const row = rows.find(r => r.color === color)
     const idx = row.numbers.indexOf(number)
@@ -92,14 +100,15 @@ function App() {
   }
 
   const onRoll = () => {
-const white = [1,2].map(() => Math.ceil(Math.random()*6))
+    const white = [1,2].map(() => Math.ceil(Math.random()*6))
     const colors = [1,2,3,4].map(() => Math.ceil(Math.random()*6))
     const combos = []
     for (let i = 0; i < colors.length; i++){
-      combos.push({ color: rows[i+0].color, sum: white[0] + colors[i] })
-      combos.push({ color: rows[i+0].color, sum: white[1] + colors[i] })
+      combos.push({ color: rows[i].color, sum: white[0] + colors[i] })
+      combos.push({ color: rows[i].color, sum: white[1] + colors[i] })
     }
-    setRoll({ white, colors, combos })
+    const whiteSum = white[0] + white[1]
+    setRoll({ white, colors, combos, whiteSum })
   }
 
   const totalScore = scoreRow(sheet.red.length) + scoreRow(sheet.yellow.length) + scoreRow(sheet.green.length) + scoreRow(sheet.blue.length)
