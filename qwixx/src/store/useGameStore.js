@@ -20,7 +20,9 @@ const createSoloState = () => {
     gameOver: false,
     status: '',
     channel: null,
-    locks: defaultLocks()
+    locks: defaultLocks(),
+    whiteMarks: [],
+    nextRollAllowedAt: 0
   }
 }
 
@@ -31,10 +33,12 @@ const makeId = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypt
 const getPlayerIndex = (players, id) => players.findIndex((p) => p.id === id)
 const getPlayer = (state) => state.players.find((p) => p.id === state.playerId)
 
-const getMarkType = (state, color, number) => {
+const getMarkType = (state, color, number, playerId) => {
   if (!state.roll) return null
-  if (!state.turnUsage.white && number === state.roll.whiteSum) return 'white'
-  if (!state.turnUsage.color && state.roll.combos.some((combo) => combo.color === color && combo.sum === number)) return 'color'
+  const isActive = playerId === state.playerId
+  const hasWhite = state.whiteMarks?.includes(playerId)
+  if (!hasWhite && number === state.roll.whiteSum) return 'white'
+  if (isActive && !state.turnUsage.color && state.roll.combos.some((combo) => combo.color === color && combo.sum === number)) return 'color'
   return null
 }
 
@@ -47,7 +51,9 @@ const makeEnvelope = (state) => ({
   roll: state.roll,
   turnUsage: state.turnUsage,
   gameOver: state.gameOver,
-  status: state.status
+  status: state.status,
+  whiteMarks: state.whiteMarks,
+  nextRollAllowedAt: state.nextRollAllowedAt
 })
 
 export const useGameStore = create((set, get) => ({
@@ -62,7 +68,7 @@ export const useGameStore = create((set, get) => ({
     if (state.gameOver) return false
     if (state.locks[color]) return false
     if (player.sheet[color].includes(number)) return false
-    const markType = getMarkType(state, color, number)
+    const markType = getMarkType(state, color, number, state.playerId)
     if (!markType) return false
     const row = rows.find((r) => r.color === color)
     const idx = row.numbers.indexOf(number)
@@ -80,7 +86,7 @@ export const useGameStore = create((set, get) => ({
     if (playerIdx === -1) return
     const player = state.players[playerIdx]
     if (player.sheet[color].includes(number)) return
-    const markType = getMarkType(state, color, number)
+    const markType = getMarkType(state, color, number, state.playerId)
     if (!markType) return
 
     const updatedPlayer = {
@@ -90,7 +96,8 @@ export const useGameStore = create((set, get) => ({
     const players = [...state.players]
     players[playerIdx] = updatedPlayer
 
-    const newTurnUsage = { ...state.turnUsage, [markType]: true }
+    const newTurnUsage = markType === 'color' ? { ...state.turnUsage, color: true } : state.turnUsage
+    const newWhiteMarks = markType === 'white' ? [...(state.whiteMarks || []), player.id] : state.whiteMarks
     let newLocks = state.locks
     let gameOver = state.gameOver
 
@@ -103,7 +110,7 @@ export const useGameStore = create((set, get) => ({
       if (lockCount >= 2) gameOver = true
     }
 
-    set({ players, turnUsage: newTurnUsage, locks: newLocks, gameOver }, false)
+    set({ players, turnUsage: newTurnUsage, locks: newLocks, gameOver, whiteMarks: newWhiteMarks }, false)
     get().syncRemote()
   },
 
@@ -131,7 +138,8 @@ export const useGameStore = create((set, get) => ({
     }
     const roll = { white, colors, combos, whiteSum: white[0] + white[1] }
 
-    set({ roll, turnUsage: { white: false, color: false }, players, gameOver })
+    const nextRollAllowedAt = Date.now() + 3000
+    set({ roll, turnUsage: { white: false, color: false }, players, gameOver, whiteMarks: [], nextRollAllowedAt })
     get().syncRemote()
   },
 

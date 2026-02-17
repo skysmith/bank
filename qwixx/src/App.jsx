@@ -1,5 +1,5 @@
 import './App.css'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { rows, colorHex } from './constants'
 import { useGameStore } from './store/useGameStore'
 
@@ -84,10 +84,25 @@ function PlayerBoards(){
 }
 
 function DiceTray(){
-  const { roll, rollDice, gameOver } = useGameStore()
+  const roll = useGameStore((state) => state.roll)
+  const rollDice = useGameStore((state) => state.rollDice)
+  const gameOver = useGameStore((state) => state.gameOver)
+  const nextRollAllowedAt = useGameStore((state) => state.nextRollAllowedAt)
+  const [now, setNow] = useState(Date.now())
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 250)
+    return () => clearInterval(id)
+  }, [])
+
+  const cooldownMs = Math.max(0, (nextRollAllowedAt || 0) - now)
+  const disabled = gameOver || cooldownMs > 0
+
   return (
     <div className="dice-tray">
-      <button className="btn" onClick={rollDice} disabled={gameOver}>Roll dice</button>
+      <button className="btn" onClick={rollDice} disabled={disabled}>
+        {disabled && !gameOver ? `Next roll in ${(cooldownMs/1000).toFixed(1)}s` : 'Roll dice'}
+      </button>
       {roll && (
         <div className="dice-values">
           <div>
