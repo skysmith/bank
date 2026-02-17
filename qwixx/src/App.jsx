@@ -35,6 +35,54 @@ function Sheet(){
   )
 }
 
+
+function PlayerBoards(){
+  const players = useGameStore((state) => state.players)
+  const playerId = useGameStore((state) => state.playerId)
+  const adjustPenalty = useGameStore((state) => state.adjustPenalty)
+  const gameOver = useGameStore((state) => state.gameOver)
+
+  return (
+    <section className="card player-cards">
+      <h3>Players {gameOver ? '(complete)' : ''}</h3>
+      <div className="player-card-grid">
+        {players.map((player) => {
+          const rowScore = rows.reduce((total, row) => total + scoreRow(player.sheet[row.color].length), 0)
+          const total = rowScore - player.penalties * 5
+          const isMe = player.id === playerId
+          return (
+            <article key={player.id} className={`mini-card ${isMe ? 'me' : ''}`}>
+              <div className="mini-card-head">
+                <strong>{player.name}{isMe ? ' (you)' : ''}</strong>
+                <span>{total} pts</span>
+              </div>
+              <ul>
+                {rows.map((row) => (
+                  <li key={row.color}>
+                    <span style={{ color: colorHex[row.color] }}>{row.color}</span>
+                    <span>{scoreRow(player.sheet[row.color].length)}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="mini-penalties">
+                {isMe ? (
+                  <>
+                    <span>Penalties: {player.penalties}</span>
+                    <button className="penalty-btn" onClick={() => adjustPenalty(1)}>+1</button>
+                    <button className="penalty-btn" onClick={() => adjustPenalty(-1)}>-1</button>
+                  </>
+                ) : (
+                  <span>Penalties: {player.penalties}</span>
+                )}
+              </div>
+            </article>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
 function DiceTray(){
   const { roll, rollDice, gameOver } = useGameStore()
   return (
@@ -60,51 +108,7 @@ function DiceTray(){
   )
 }
 
-function PlayerList(){
-  const players = useGameStore((state) => state.players)
-  return (
-    <section className="card">
-      <h3>Players</h3>
-      <ul className="player-list">
-        {players.map((p) => {
-          const rowScore = rows.reduce((total, row) => total + scoreRow(p.sheet[row.color].length), 0)
-          const total = rowScore - p.penalties * 5
-          return (
-            <li key={p.id}>
-              <strong>{p.name}</strong> · {total} pts · penalties: {p.penalties}
-            </li>
-          )
-        })}
-      </ul>
-    </section>
-  )
-}
 
-function ScoreCard(){
-  const player = useGameStore((state) => state.players.find(p => p.id === state.playerId))
-  const adjustPenalty = useGameStore((state) => state.adjustPenalty)
-  const gameOver = useGameStore((state) => state.gameOver)
-  if (!player) return null
-  const rowScore = rows.reduce((total, row) => total + scoreRow(player.sheet[row.color].length), 0)
-  const total = rowScore - player.penalties * 5
-
-  return (
-    <section className="card">
-      <h3>{player.name}'s sheet {gameOver ? '(complete)' : ''}</h3>
-      <ul>
-        {rows.map((row) => (
-          <li key={row.color}><strong style={{ color: colorHex[row.color] }}>{row.color}</strong>: {scoreRow(player.sheet[row.color].length)}</li>
-        ))}
-      </ul>
-      <div className="penalties">
-        <span>Penalties: {player.penalties} ( -{player.penalties * 5} )</span>
-        <button className="penalty-btn" onClick={() => adjustPenalty(1)}>+ penalty</button>
-        <button className="penalty-btn" onClick={() => adjustPenalty(-1)}>-</button>
-      </div>
-      <p>Total: {total}</p>
-    </section>
-  )
-}
 
 function OnlineControls(){
   const { code, status, hostGame, joinGame, leaveGame } = useGameStore()
@@ -162,8 +166,7 @@ function App() {
       <OnlineControls />
       <DiceTray />
       <Sheet />
-      <ScoreCard />
-      <PlayerList />
+      <PlayerBoards />
     </div>
   )
 }
