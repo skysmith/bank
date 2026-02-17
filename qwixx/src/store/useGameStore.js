@@ -44,6 +44,8 @@ const getMarkType = (state, color, number, playerId) => {
   return null
 }
 
+const normalizeRoom = (name) => name.trim().replace(/\s+/g,'-').toUpperCase()
+
 const makeEnvelope = (state) => ({
   code: state.code,
   playerId: state.playerId,
@@ -172,8 +174,8 @@ export const useGameStore = create((set, get) => ({
     set(baseState())
   },
 
-  hostGame: async (name) => {
-    const code = Math.random().toString(36).slice(2, 7).toUpperCase()
+  hostGame: async (name, roomName) => {
+    const code = normalizeRoom(roomName || name || Math.random().toString(36).slice(2,7))
     const playerId = makeId()
     const player = makePlayer(playerId, name)
     const envelope = { ...baseState(), code, playerId, name, players: [player], activePlayerId: playerId, currentRollerId: playerId }
@@ -182,7 +184,8 @@ export const useGameStore = create((set, get) => ({
     get().subscribe(code)
   },
 
-  joinGame: async (name, code) => {
+  joinGame: async (name, roomName) => {
+    const code = normalizeRoom(roomName)
     const playerId = makeId()
     const { data, error } = await supabase.from('qwixx_games').select('state').eq('code', code).single()
     if (error || !data) {

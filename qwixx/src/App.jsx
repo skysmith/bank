@@ -128,8 +128,9 @@ function DiceTray(){
 function OnlineControls(){
   const { code, status, hostGame, joinGame, leaveGame } = useGameStore()
   const [hostName, setHostName] = useState('')
+  const [roomName, setRoomName] = useState('')
   const [joinName, setJoinName] = useState('')
-  const [joinCode, setJoinCode] = useState('')
+  const [joinRoom, setJoinRoom] = useState('')
 
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
 
@@ -141,20 +142,21 @@ function OnlineControls(){
           <div>
             <p className="muted">Host a room.</p>
             <input type="text" placeholder="Your name" value={hostName} onChange={(e) => setHostName(e.target.value)} />
-            <button className="btn primary" onClick={() => hostName && hostGame(hostName)}>Create room</button>
+            <input type="text" placeholder="Room name" value={roomName} onChange={(e) => setRoomName(e.target.value)} />
+            <button className="btn primary" onClick={() => hostName && roomName && hostGame(hostName, roomName)}>Create room</button>
           </div>
           <div>
-            <p className="muted">Join by code.</p>
+            <p className="muted">Join by room name.</p>
             <input type="text" placeholder="Your name" value={joinName} onChange={(e) => setJoinName(e.target.value)} />
-            <input type="text" placeholder="Code" value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase())} />
-            <button className="btn ghost" onClick={() => joinName && joinCode && joinGame(joinName, joinCode)}>Join room</button>
+            <input type="text" placeholder="Room name" value={joinRoom} onChange={(e) => setJoinRoom(e.target.value)} />
+            <button className="btn ghost" onClick={() => joinName && joinRoom && joinGame(joinName, joinRoom)}>Join room</button>
             {status && <p className="status muted">{status}</p>}
           </div>
         </div>
       ) : (
         <div>
           <p className="muted">Connected to <strong>{code}</strong></p>
-          <p>Share <code>{origin}/qwixx/index.html?code={code}</code></p>
+          <p>Share <code>{origin}/qwixx/index.html?room={code}</code></p>
           <button className="btn ghost" onClick={leaveGame}>Leave</button>
         </div>
       )}
@@ -168,6 +170,16 @@ function scoreRow(crosses){
 }
 
 function App() {
+  const { joinGame } = useGameStore()
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const room = params.get('room')
+    const name = params.get('name')
+    if (room && name) {
+      joinGame(name, room)
+    }
+  }, [])
+
   return (
     <div className="page">
       <header>
