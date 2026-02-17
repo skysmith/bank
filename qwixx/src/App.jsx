@@ -114,6 +114,9 @@ function App() {
   }
 
   const onRoll = () => {
+    if (turnUsage.white === false && turnUsage.color === false && roll){
+      setPenalties((prev) => Math.min(4, prev + 1))
+    }
     const white = [1,2].map(() => Math.ceil(Math.random()*6))
     const colors = [1,2,3,4].map(() => Math.ceil(Math.random()*6))
     const combos = []
