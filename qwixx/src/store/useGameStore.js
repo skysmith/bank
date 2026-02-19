@@ -103,7 +103,10 @@ export const useGameStore = create((set, get) => ({
     const players = [...state.players]
     players[playerIdx] = updatedPlayer
 
-    const newTurnUsage = markType === 'color' ? { ...state.turnUsage, color: true } : state.turnUsage
+    const newTurnUsage = {
+      white: markType === 'white' ? true : state.turnUsage.white,
+      color: markType === 'color' ? true : state.turnUsage.color
+    }
     const newWhiteMarks = markType === 'white' ? [...(state.whiteMarks || []), player.id] : state.whiteMarks
     let newLocks = state.locks
     let gameOver = state.gameOver

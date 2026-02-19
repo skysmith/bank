@@ -88,6 +88,8 @@ function DiceTray(){
   const rollDice = useGameStore((state) => state.rollDice)
   const gameOver = useGameStore((state) => state.gameOver)
   const nextRollAllowedAt = useGameStore((state) => state.nextRollAllowedAt)
+  const playerId = useGameStore((state) => state.playerId)
+  const activePlayerId = useGameStore((state) => state.activePlayerId)
   const [now, setNow] = useState(Date.now())
 
   useEffect(() => {
@@ -96,14 +98,17 @@ function DiceTray(){
   }, [])
 
   const cooldownMs = Math.max(0, (nextRollAllowedAt || 0) - now)
-  const disabled = gameOver || cooldownMs > 0
+  const offTurn = playerId && activePlayerId && playerId !== activePlayerId
+  const disabled = gameOver || cooldownMs > 0 || offTurn
 
   return (
     <div className="dice-tray">
       <button className="btn" onClick={rollDice} disabled={disabled}>
-        {disabled && !gameOver ? `Next roll in ${(cooldownMs/1000).toFixed(1)}s` : 'Roll dice'}
+        {gameOver ? 'Game over' : offTurn ? 'Waiting for roller' : cooldownMs > 0 ? `Next roll in ${(cooldownMs/1000).toFixed(1)}s` : 'Roll dice'}
       </button>
       {roll && (
+        <>
+        <p className="muted small">{offTurn ? 'Only the active roller can start the next turn.' : 'Use the white sum or a color combo before rolling again.'}</p>
         <div className="dice-values">
           <div>
             <span>White</span>
@@ -118,6 +123,7 @@ function DiceTray(){
             ))}
           </div>
         </div>
+        </>
       )}
     </div>
   )
