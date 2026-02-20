@@ -90,6 +90,7 @@ function DiceTray(){
   const nextRollAllowedAt = useGameStore((state) => state.nextRollAllowedAt)
   const playerId = useGameStore((state) => state.playerId)
   const activePlayerId = useGameStore((state) => state.activePlayerId)
+  const players = useGameStore((state) => state.players)
   const [now, setNow] = useState(Date.now())
 
   useEffect(() => {
@@ -98,17 +99,28 @@ function DiceTray(){
   }, [])
 
   const cooldownMs = Math.max(0, (nextRollAllowedAt || 0) - now)
-  const offTurn = playerId && activePlayerId && playerId !== activePlayerId
-  const disabled = gameOver || cooldownMs > 0 || offTurn
+  const activePlayer = players.find((p) => p.id === activePlayerId)
+  const isMyTurn = Boolean(playerId && activePlayerId && playerId === activePlayerId)
+  const disabled = gameOver || cooldownMs > 0 || !isMyTurn
 
   return (
     <div className="dice-tray">
       <button className="btn" onClick={rollDice} disabled={disabled}>
-        {gameOver ? 'Game over' : offTurn ? 'Waiting for roller' : cooldownMs > 0 ? `Next roll in ${(cooldownMs/1000).toFixed(1)}s` : 'Roll dice'}
+        {gameOver
+          ? 'Game over'
+          : !activePlayerId
+            ? 'Waiting for host'
+            : !isMyTurn
+              ? `Waiting for ${activePlayer?.name ?? 'other player'}`
+              : cooldownMs > 0
+                ? `Next roll in ${(cooldownMs/1000).toFixed(1)}s`
+                : 'Roll dice'}
       </button>
       {roll && (
         <>
-        <p className="muted small">{offTurn ? 'Only the active roller can start the next turn.' : 'Use the white sum or a color combo before rolling again.'}</p>
+        <p className="muted small">
+          {isMyTurn ? 'Use the white sum or a color combo before rolling again.' : 'Only the active roller can start the next turn.'}
+        </p>
         <div className="dice-values">
           <div>
             <span>White</span>
@@ -196,10 +208,10 @@ function App() {
         </div>
       </header>
 
-      <OnlineControls />
       <DiceTray />
       <Sheet />
       <PlayerBoards />
+      <OnlineControls />
     </div>
   )
 }
