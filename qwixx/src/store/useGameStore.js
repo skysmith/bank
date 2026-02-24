@@ -5,46 +5,17 @@ import { rows } from '../constants'
 const emptySheet = () => ({ red: [], yellow: [], green: [], blue: [] })
 const defaultLocks = () => ({ red: false, yellow: false, green: false, blue: false })
 
-const makePlayer = (id, name) => ({ id, name, sheet: emptySheet(), locks: defaultLocks(), penalties: 0 })
+const makeId = () => (
+  typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : Math.random().toString(36).slice(2)
+)
 
-const createSoloState = () => {
-  const soloId = makeId()
-  const soloPlayer = makePlayer(soloId, 'Solo')
-  return {
-    code: null,
-    playerId: soloId,
-    name: 'Solo',
-    activePlayerId: soloId,
-    currentRollerId: soloId,
-    players: [soloPlayer],
-    roll: null,
-    turnUsage: { white: false, color: false },
-    gameOver: false,
-    status: '',
-    channel: null,
-    locks: defaultLocks(),
-    whiteMarks: [],
-    nextRollAllowedAt: 0
-  }
-}
+const scoreTable = [0, 1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66]
 
-const baseState = () => createSoloState()
+const scoreRow = (crosses) => scoreTable[crosses] || 0
 
-const makeId = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2))
-
-const getPlayerIndex = (players, id) => players.findIndex((p) => p.id === id)
-const getPlayer = (state) => state.players.find((p) => p.id === state.playerId)
-
-const getMarkType = (state, color, number, playerId) => {
-  if (!state.roll) return null
-  const hasWhite = state.whiteMarks?.includes(playerId)
-  if (!hasWhite && number === state.roll.whiteSum) return 'white'
-  const isRoller = playerId === state.currentRollerId
-  if (isRoller && !state.turnUsage.color && state.roll.combos.some((combo) => combo.color === color && combo.sum === number)) return 'color'
-  return null
-}
-
-const normalizeRoom = (name) => name.trim().replace(/\s+/g,'-').toUpperCase()
+const normalizeRoom = (name) => (name || '').trim().replace(/\s+/g, '-').toUpperCase()
 
 const roomPlayerKey = (code) => `qwixx:player:${code}`
 
@@ -62,122 +33,268 @@ const getOrMakeRoomPlayerId = (code) => {
   }
 }
 
+const makePlayer = (id, name) => ({
+  id,
+  name,
+  sheet: emptySheet(),
+  penalties: 0
+})
+
+const createSoloState = () => {
+  const id = makeId()
+  return {
+    code: null,
+    playerId: id,
+    name: 'Solo',
+    players: [makePlayer(id, 'Solo')],
+    roll: null,
+    locks: defaultLocks(),
+    whiteUsedBy: [],
+    activeUsedWhite: false,
+    activeUsedColor: false,
+    activePlayerId: id,
+    currentRollerId: id,
+    nextRollAllowedAt: 0,
+    turnStartedAt: 0,
+    status: '',
+    gameOver: false,
+    channel: null
+  }
+}
+
+const baseState = () => createSoloState()
+
+const findPlayerIndexById = (players, id) => players.findIndex((p) => p.id === id)
+
+const getPlayerById = (players, id) => players.find((p) => p.id === id)
+
+const dedupePlayers = (players = []) => {
+  const seen = new Set()
+  const out = []
+  for (const p of players) {
+    if (!p?.id || seen.has(p.id)) continue
+    seen.add(p.id)
+    out.push({
+      ...makePlayer(p.id, p.name || 'Player'),
+      ...p,
+      sheet: {
+        ...emptySheet(),
+        ...(p.sheet || {})
+      },
+      penalties: Math.min(4, Math.max(0, p.penalties || 0))
+    })
+  }
+  return out
+}
+
+const sanitizeState = (raw) => {
+  const state = { ...(raw || {}) }
+  const players = dedupePlayers(state.players)
+  const activeExists = players.some((p) => p.id === state.activePlayerId)
+  const rollerExists = players.some((p) => p.id === state.currentRollerId)
+  return {
+    ...state,
+    players,
+    locks: { ...defaultLocks(), ...(state.locks || {}) },
+    whiteUsedBy: Array.isArray(state.whiteUsedBy) ? state.whiteUsedBy : [],
+    activeUsedWhite: Boolean(state.activeUsedWhite),
+    activeUsedColor: Boolean(state.activeUsedColor),
+    activePlayerId: activeExists ? state.activePlayerId : players[0]?.id || null,
+    currentRollerId: rollerExists ? state.currentRollerId : players[0]?.id || null,
+    nextRollAllowedAt: Number(state.nextRollAllowedAt || 0),
+    turnStartedAt: Number(state.turnStartedAt || 0),
+    gameOver: Boolean(state.gameOver),
+    status: state.status || ''
+  }
+}
+
+const isLegalRowMark = (player, color, number, locks) => {
+  if (!player) return false
+  if (locks[color]) return false
+  if (player.sheet[color]?.includes(number)) return false
+  const row = rows.find((r) => r.color === color)
+  if (!row) return false
+  const idx = row.numbers.indexOf(number)
+  if (idx === -1) return false
+  const crossed = player.sheet[color] || []
+  if (crossed.length === 0) return true
+  const last = crossed[crossed.length - 1]
+  const lastIdx = row.numbers.indexOf(last)
+  return idx > lastIdx
+}
+
+const canTakeWhite = (state, playerId, number) => {
+  if (!state.roll) return false
+  if (state.whiteUsedBy.includes(playerId)) return false
+  return number === state.roll.whiteSum
+}
+
+const canTakeColor = (state, playerId, color, number) => {
+  if (!state.roll) return false
+  if (playerId !== state.activePlayerId) return false
+  if (state.activeUsedColor) return false
+  return state.roll.combos.some((combo) => combo.color === color && combo.sum === number)
+}
+
 const makeEnvelope = (state) => ({
   code: state.code,
   players: state.players,
-  locks: state.locks,
   roll: state.roll,
-  turnUsage: state.turnUsage,
-  gameOver: state.gameOver,
-  status: state.status,
-  whiteMarks: state.whiteMarks,
-  nextRollAllowedAt: state.nextRollAllowedAt,
+  locks: state.locks,
+  whiteUsedBy: state.whiteUsedBy,
+  activeUsedWhite: state.activeUsedWhite,
+  activeUsedColor: state.activeUsedColor,
   activePlayerId: state.activePlayerId,
-  currentRollerId: state.currentRollerId
+  currentRollerId: state.currentRollerId,
+  nextRollAllowedAt: state.nextRollAllowedAt,
+  turnStartedAt: state.turnStartedAt,
+  gameOver: state.gameOver,
+  status: state.status
 })
+
+const rollDiceSet = () => {
+  const white = [1, 2].map(() => Math.ceil(Math.random() * 6))
+  const colors = [1, 2, 3, 4].map(() => Math.ceil(Math.random() * 6))
+  const combos = []
+  for (let i = 0; i < colors.length; i += 1) {
+    combos.push({ color: rows[i].color, sum: white[0] + colors[i] })
+    combos.push({ color: rows[i].color, sum: white[1] + colors[i] })
+  }
+  return { white, colors, combos, whiteSum: white[0] + white[1] }
+}
 
 export const useGameStore = create((set, get) => ({
   ...baseState(),
+
+  scoreForPlayer: (player) => {
+    const rowsScore = rows.reduce((sum, row) => sum + scoreRow((player.sheet[row.color] || []).length), 0)
+    return rowsScore - (player.penalties || 0) * 5
+  },
 
   setStatus: (status) => set({ status }),
 
   canMark: (color, number) => {
     const state = get()
-    const player = getPlayer(state)
-    if (!player) return false
     if (state.gameOver) return false
-    if (state.locks[color]) return false
-    if (player.sheet[color].includes(number)) return false
-    const markType = getMarkType(state, color, number, state.playerId)
-    if (!markType) return false
-    const row = rows.find((r) => r.color === color)
-    const idx = row.numbers.indexOf(number)
-    if (idx === -1) return false
-    if (player.sheet[color].length === 0) return true
-    const last = player.sheet[color][player.sheet[color].length - 1]
-    const lastIdx = row.numbers.indexOf(last)
-    return idx > lastIdx
+    const player = getPlayerById(state.players, state.playerId)
+    if (!isLegalRowMark(player, color, number, state.locks)) return false
+    if (!state.roll) return false
+    if (canTakeWhite(state, state.playerId, number)) return true
+    if (canTakeColor(state, state.playerId, color, number)) return true
+    return false
   },
 
   markNumber: (color, number) => {
     const state = get()
     if (state.gameOver) return
-    if (state.playerId !== state.activePlayerId) return
-    const playerIdx = getPlayerIndex(state.players, state.playerId)
-    if (playerIdx === -1) return
-    const player = state.players[playerIdx]
-    if (player.sheet[color].includes(number)) return
-    const markType = getMarkType(state, color, number, state.playerId)
-    if (!markType) return
 
-    const updatedPlayer = {
+    const idx = findPlayerIndexById(state.players, state.playerId)
+    if (idx === -1) return
+
+    const player = state.players[idx]
+    if (!isLegalRowMark(player, color, number, state.locks)) return
+
+    const asWhite = canTakeWhite(state, state.playerId, number)
+    const asColor = canTakeColor(state, state.playerId, color, number)
+    if (!asWhite && !asColor) return
+
+    const updated = {
       ...player,
-      sheet: { ...player.sheet, [color]: [...player.sheet[color], number] }
+      sheet: {
+        ...player.sheet,
+        [color]: [...(player.sheet[color] || []), number]
+      }
     }
-    const players = [...state.players]
-    players[playerIdx] = updatedPlayer
 
-    const newTurnUsage = {
-      white: markType === 'white' ? true : state.turnUsage.white,
-      color: markType === 'color' ? true : state.turnUsage.color
-    }
-    const newWhiteMarks = markType === 'white' ? [...(state.whiteMarks || []), player.id] : state.whiteMarks
-    let newLocks = state.locks
+    const players = [...state.players]
+    players[idx] = updated
+
+    let locks = state.locks
     let gameOver = state.gameOver
 
     const row = rows.find((r) => r.color === color)
-    const isEndNumber = row.numbers[row.numbers.length - 1] === number
-    const crosses = updatedPlayer.sheet[color].length
-    if (isEndNumber && crosses >= 5) {
-      newLocks = { ...state.locks, [color]: true }
-      const lockCount = Object.values(newLocks).filter(Boolean).length
+    const rowCrosses = updated.sheet[color].length
+    const endNumber = row.numbers[row.numbers.length - 1]
+    if (!locks[color] && number === endNumber && rowCrosses >= 5) {
+      locks = { ...locks, [color]: true }
+      const lockCount = Object.values(locks).filter(Boolean).length
       if (lockCount >= 2) gameOver = true
     }
 
-    set({ players, turnUsage: newTurnUsage, locks: newLocks, gameOver, whiteMarks: newWhiteMarks }, false)
+    const whiteUsedBy = asWhite && !state.whiteUsedBy.includes(state.playerId)
+      ? [...state.whiteUsedBy, state.playerId]
+      : state.whiteUsedBy
+
+    const activeUsedWhite = asWhite && state.playerId === state.activePlayerId
+      ? true
+      : state.activeUsedWhite
+
+    const activeUsedColor = asColor ? true : state.activeUsedColor
+
+    set({ players, locks, gameOver, whiteUsedBy, activeUsedWhite, activeUsedColor }, false)
     get().syncRemote()
   },
 
   rollDice: () => {
     const state = get()
     if (state.gameOver) return
-    if (state.playerId !== state.activePlayerId) return
-    const playerIdx = getPlayerIndex(state.players, state.playerId)
-    if (playerIdx === -1) return
-    let players = [...state.players]
+    if (!state.activePlayerId || state.playerId !== state.activePlayerId) return
+    if (Date.now() < state.nextRollAllowedAt) return
+
+    const players = [...state.players]
+    const activeIdx = findPlayerIndexById(players, state.activePlayerId)
+    if (activeIdx === -1) return
+
     let gameOver = state.gameOver
 
-    if (state.roll && !state.turnUsage.white && !state.turnUsage.color) {
-      const player = players[playerIdx]
-      const penalties = Math.min(4, player.penalties + 1)
-      players[playerIdx] = { ...player, penalties }
+    if (state.roll && !state.activeUsedWhite && !state.activeUsedColor) {
+      const active = players[activeIdx]
+      const penalties = Math.min(4, (active.penalties || 0) + 1)
+      players[activeIdx] = { ...active, penalties }
       if (penalties >= 4) gameOver = true
     }
 
-    const white = [1, 2].map(() => Math.ceil(Math.random() * 6))
-    const colors = [1, 2, 3, 4].map(() => Math.ceil(Math.random() * 6))
-    const combos = []
-    for (let i = 0; i < colors.length; i++) {
-      combos.push({ color: rows[i].color, sum: white[0] + colors[i] })
-      combos.push({ color: rows[i].color, sum: white[1] + colors[i] })
-    }
-    const roll = { white, colors, combos, whiteSum: white[0] + white[1] }
-
-    const nextRollAllowedAt = Date.now() + 3000
-    const nextIdx = players.length ? (playerIdx + 1) % players.length : playerIdx
+    const roll = rollDiceSet()
+    const nextIdx = players.length ? (activeIdx + 1) % players.length : activeIdx
     const nextActive = players[nextIdx]?.id || state.activePlayerId
+    const now = Date.now()
 
-    set({ roll, turnUsage: { white: false, color: false }, players, gameOver, whiteMarks: [], nextRollAllowedAt, currentRollerId: state.playerId, activePlayerId: nextActive })
+    set({
+      players,
+      roll,
+      gameOver,
+      whiteUsedBy: [],
+      activeUsedWhite: false,
+      activeUsedColor: false,
+      currentRollerId: state.activePlayerId,
+      activePlayerId: nextActive,
+      nextRollAllowedAt: now + 1500,
+      turnStartedAt: now
+    }, false)
+
+    get().syncRemote()
+  },
+
+  takeTurnIfStuck: () => {
+    const state = get()
+    if (!state.code || state.gameOver) return
+    if (!state.playerId) return
+
+    const now = Date.now()
+    const stale = state.turnStartedAt > 0 && (now - state.turnStartedAt) > 15000
+    if (!stale && state.activePlayerId && state.activePlayerId !== state.playerId) return
+
+    set({ activePlayerId: state.playerId, nextRollAllowedAt: 0 }, false)
     get().syncRemote()
   },
 
   adjustPenalty: (delta) => {
     set((state) => {
-      const idx = getPlayerIndex(state.players, state.playerId)
+      const idx = findPlayerIndexById(state.players, state.playerId)
       if (idx === -1) return state
       const players = [...state.players]
       const player = players[idx]
-      const penalties = Math.min(4, Math.max(0, player.penalties + delta))
+      const penalties = Math.min(4, Math.max(0, (player.penalties || 0) + delta))
       players[idx] = { ...player, penalties }
       const gameOver = penalties >= 4 ? true : state.gameOver
       return { players, gameOver }
@@ -192,35 +309,74 @@ export const useGameStore = create((set, get) => ({
   },
 
   hostGame: async (name, roomName) => {
-    const code = normalizeRoom(roomName || name || Math.random().toString(36).slice(2,7))
+    const cleanName = (name || '').trim()
+    const code = normalizeRoom(roomName || cleanName || Math.random().toString(36).slice(2, 7))
+    if (!cleanName || !code) {
+      set({ status: 'Name and room are required' })
+      return
+    }
+
     const playerId = getOrMakeRoomPlayerId(code)
-    const player = makePlayer(playerId, name)
-    const envelope = { ...baseState(), code, playerId, name, players: [player], activePlayerId: playerId, currentRollerId: playerId }
-    await supabase.from('qwixx_games').insert({ code, state: envelope })
-    set(envelope)
+    const player = makePlayer(playerId, cleanName)
+
+    const envelope = {
+      ...sanitizeState(baseState()),
+      code,
+      players: [player],
+      activePlayerId: playerId,
+      currentRollerId: playerId,
+      roll: null,
+      whiteUsedBy: [],
+      activeUsedWhite: false,
+      activeUsedColor: false,
+      nextRollAllowedAt: 0,
+      turnStartedAt: 0,
+      gameOver: false,
+      status: ''
+    }
+
+    const { error } = await supabase.from('qwixx_games').upsert({ code, state: envelope }, { onConflict: 'code' })
+    if (error) {
+      set({ status: `Host failed: ${error.message}` })
+      return
+    }
+
+    set({ ...envelope, playerId, name: cleanName, status: '' })
     get().subscribe(code)
   },
 
   joinGame: async (name, roomName) => {
+    const cleanName = (name || '').trim()
     const code = normalizeRoom(roomName)
+    if (!cleanName || !code) {
+      set({ status: 'Name and room are required' })
+      return
+    }
+
     const playerId = getOrMakeRoomPlayerId(code)
     const { data, error } = await supabase.from('qwixx_games').select('state').eq('code', code).single()
-    if (error || !data) {
+    if (error || !data?.state) {
       set({ status: 'Game not found' })
       return
     }
-    const remoteEnvelope = { ...data.state }
-    const existingIdx = (remoteEnvelope.players || []).findIndex((p) => p.id === playerId)
-    if (existingIdx === -1) {
-      remoteEnvelope.players = [...(remoteEnvelope.players || []), makePlayer(playerId, name)]
-    } else if (remoteEnvelope.players[existingIdx].name !== name) {
-      const players = [...remoteEnvelope.players]
-      players[existingIdx] = { ...players[existingIdx], name }
-      remoteEnvelope.players = players
+
+    const remote = sanitizeState(data.state)
+    const idx = findPlayerIndexById(remote.players, playerId)
+    if (idx === -1) {
+      remote.players = [...remote.players, makePlayer(playerId, cleanName)]
+    } else if (remote.players[idx].name !== cleanName) {
+      const players = [...remote.players]
+      players[idx] = { ...players[idx], name: cleanName }
+      remote.players = players
     }
-    remoteEnvelope.code = code
-    await supabase.from('qwixx_games').update({ state: remoteEnvelope }).eq('code', code)
-    set({ ...remoteEnvelope, playerId, name })
+
+    const { error: updateError } = await supabase.from('qwixx_games').update({ state: makeEnvelope(remote) }).eq('code', code)
+    if (updateError) {
+      set({ status: `Join failed: ${updateError.message}` })
+      return
+    }
+
+    set({ ...remote, playerId, name: cleanName, code, status: '' })
     get().subscribe(code)
   },
 
@@ -233,15 +389,26 @@ export const useGameStore = create((set, get) => ({
   subscribe: (code) => {
     const { channel } = get()
     if (channel) channel.unsubscribe()
+
     const newChannel = supabase
       .channel(`qwixx:${code}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'qwixx_games', filter: `code=eq.${code}` }, (payload) => {
-        if (payload.new?.state) {
-          // player identity is local to each browser tab and should not be overwritten by room updates
-          set((curr) => ({ ...curr, ...payload.new.state, playerId: curr.playerId, name: curr.name }))
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'qwixx_games', filter: `code=eq.${code}` },
+        (payload) => {
+          if (!payload.new?.state) return
+          const remote = sanitizeState(payload.new.state)
+          set((curr) => ({
+            ...curr,
+            ...remote,
+            playerId: curr.playerId,
+            name: curr.name,
+            channel: curr.channel
+          }))
         }
-      })
+      )
       .subscribe()
+
     set({ channel: newChannel })
   },
 
