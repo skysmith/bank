@@ -46,6 +46,22 @@ const getMarkType = (state, color, number, playerId) => {
 
 const normalizeRoom = (name) => name.trim().replace(/\s+/g,'-').toUpperCase()
 
+const roomPlayerKey = (code) => `qwixx:player:${code}`
+
+const getOrMakeRoomPlayerId = (code) => {
+  if (typeof window === 'undefined') return makeId()
+  try {
+    const key = roomPlayerKey(code)
+    const existing = window.localStorage.getItem(key)
+    if (existing) return existing
+    const created = makeId()
+    window.localStorage.setItem(key, created)
+    return created
+  } catch {
+    return makeId()
+  }
+}
+
 const makeEnvelope = (state) => ({
   code: state.code,
   players: state.players,
@@ -177,7 +193,7 @@ export const useGameStore = create((set, get) => ({
 
   hostGame: async (name, roomName) => {
     const code = normalizeRoom(roomName || name || Math.random().toString(36).slice(2,7))
-    const playerId = makeId()
+    const playerId = getOrMakeRoomPlayerId(code)
     const player = makePlayer(playerId, name)
     const envelope = { ...baseState(), code, playerId, name, players: [player], activePlayerId: playerId, currentRollerId: playerId }
     await supabase.from('qwixx_games').insert({ code, state: envelope })
@@ -187,15 +203,20 @@ export const useGameStore = create((set, get) => ({
 
   joinGame: async (name, roomName) => {
     const code = normalizeRoom(roomName)
-    const playerId = makeId()
+    const playerId = getOrMakeRoomPlayerId(code)
     const { data, error } = await supabase.from('qwixx_games').select('state').eq('code', code).single()
     if (error || !data) {
       set({ status: 'Game not found' })
       return
     }
     const remoteEnvelope = { ...data.state }
-    if (!remoteEnvelope.players.some((p) => p.id === playerId)) {
+    const existingIdx = (remoteEnvelope.players || []).findIndex((p) => p.id === playerId)
+    if (existingIdx === -1) {
       remoteEnvelope.players = [...(remoteEnvelope.players || []), makePlayer(playerId, name)]
+    } else if (remoteEnvelope.players[existingIdx].name !== name) {
+      const players = [...remoteEnvelope.players]
+      players[existingIdx] = { ...players[existingIdx], name }
+      remoteEnvelope.players = players
     }
     remoteEnvelope.code = code
     await supabase.from('qwixx_games').update({ state: remoteEnvelope }).eq('code', code)
