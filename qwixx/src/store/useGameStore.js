@@ -48,8 +48,6 @@ const normalizeRoom = (name) => name.trim().replace(/\s+/g,'-').toUpperCase()
 
 const makeEnvelope = (state) => ({
   code: state.code,
-  playerId: state.playerId,
-  name: state.name,
   players: state.players,
   locks: state.locks,
   roll: state.roll,
@@ -195,15 +193,13 @@ export const useGameStore = create((set, get) => ({
       set({ status: 'Game not found' })
       return
     }
-    const envelope = { ...data.state }
-    if (!envelope.players.some((p) => p.id === playerId)) {
-      envelope.players = [...(envelope.players || []), makePlayer(playerId, name)]
+    const remoteEnvelope = { ...data.state }
+    if (!remoteEnvelope.players.some((p) => p.id === playerId)) {
+      remoteEnvelope.players = [...(remoteEnvelope.players || []), makePlayer(playerId, name)]
     }
-    envelope.code = code
-    envelope.playerId = playerId
-    envelope.name = name
-    await supabase.from('qwixx_games').update({ state: envelope }).eq('code', code)
-    set(envelope)
+    remoteEnvelope.code = code
+    await supabase.from('qwixx_games').update({ state: remoteEnvelope }).eq('code', code)
+    set({ ...remoteEnvelope, playerId, name })
     get().subscribe(code)
   },
 
@@ -220,7 +216,8 @@ export const useGameStore = create((set, get) => ({
       .channel(`qwixx:${code}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'qwixx_games', filter: `code=eq.${code}` }, (payload) => {
         if (payload.new?.state) {
-          set((curr) => ({ ...curr, ...payload.new.state }))
+          // player identity is local to each browser tab and should not be overwritten by room updates
+          set((curr) => ({ ...curr, ...payload.new.state, playerId: curr.playerId, name: curr.name }))
         }
       })
       .subscribe()
