@@ -101,10 +101,13 @@ export function maybeAdvanceRound(game){
     return true;
   }
 
+  const n = game.players.length || 1;
+  const nextStarterIdx = (game.activeIdx + 1) % n;
+
   game.round += 1;
   game.tally = 0;
   game.turnCount = 0;
-  game.activeIdx = 0;
+  game.activeIdx = nextStarterIdx;
   game.lastRoll = null;
   game.hasRolledThisTurn = false;
   game.roundStatus = game.players.map(() => ({ done:false, banked:false, busted:false }));
