@@ -130,6 +130,36 @@ function hideAllScreens(){
   gameScreen.style.display = "none";
 }
 
+function bootFromQuery(){
+  const params = new URLSearchParams(window.location.search);
+  const play = (params.get("play") || "").toLowerCase();
+
+  if (play === "bank"){
+    renderSetup();
+    showLanding();
+    return true;
+  }
+
+  if (play === "bank-local"){
+    renderSetup();
+    showSetup();
+    return true;
+  }
+
+  if (play === "bank-online"){
+    showOnlinePanel();
+    setOnlineStatus("enter a name to start");
+    return true;
+  }
+
+  if (play === "crossdice" || play === "qwixx"){
+    window.location.replace("/qwixx/index.html");
+    return true;
+  }
+
+  return false;
+}
+
 function showHub(){
   hideAllScreens();
   if (gameHub) gameHub.style.display = "block";
@@ -737,4 +767,6 @@ resetSaveBtn.addEventListener("click", () => {
 initTheme();
 renderSetup();
 setOnlineStatus("");
-showHub();
+if (!bootFromQuery()){
+  showHub();
+}
