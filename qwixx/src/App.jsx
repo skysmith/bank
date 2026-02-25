@@ -116,6 +116,8 @@ function DiceTray() {
   const activePlayer = players.find((p) => p.id === activePlayerId)
   const isMyTurn = Boolean(playerId && activePlayerId && playerId === activePlayerId)
   const cooldownMs = Math.max(0, (nextRollAllowedAt || 0) - now)
+  const turnStartedAt = useGameStore((state) => state.turnStartedAt)
+  const isStale = Boolean(turnStartedAt && (now - turnStartedAt) > 15000)
   const disabled = gameOver || cooldownMs > 0 || !isMyTurn
 
   const cta = useMemo(() => {
@@ -129,7 +131,7 @@ function DiceTray() {
   return (
     <section className="dice-tray">
       <button className="btn" disabled={disabled} onClick={rollDice}>{cta}</button>
-      {code && !isMyTurn && !gameOver && (
+      {code && !isMyTurn && !gameOver && isStale && (
         <button className="btn ghost" onClick={takeTurnIfStuck}>Take turn if stuck</button>
       )}
       {roll && (

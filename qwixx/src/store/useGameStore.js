@@ -12,6 +12,8 @@ const makeId = () => (
 )
 
 const scoreTable = [0, 1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66]
+const ROLL_COOLDOWN_MS = 5000
+const STALE_TURN_MS = 15000
 
 const scoreRow = (crosses) => scoreTable[crosses] || 0
 
@@ -268,7 +270,7 @@ export const useGameStore = create((set, get) => ({
       activeUsedColor: false,
       currentRollerId: state.activePlayerId,
       activePlayerId: nextActive,
-      nextRollAllowedAt: now + 1500,
+      nextRollAllowedAt: now + ROLL_COOLDOWN_MS,
       turnStartedAt: now
     }, false)
 
@@ -281,7 +283,7 @@ export const useGameStore = create((set, get) => ({
     if (!state.playerId) return
 
     const now = Date.now()
-    const stale = state.turnStartedAt > 0 && (now - state.turnStartedAt) > 15000
+    const stale = state.turnStartedAt > 0 && (now - state.turnStartedAt) > STALE_TURN_MS
     if (!stale && state.activePlayerId && state.activePlayerId !== state.playerId) return
 
     set({ activePlayerId: state.playerId, nextRollAllowedAt: 0 }, false)
