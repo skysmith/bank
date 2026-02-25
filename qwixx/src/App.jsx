@@ -119,22 +119,21 @@ function DiceTray() {
   const cooldownMs = Math.max(0, (nextRollAllowedAt || 0) - now)
   const turnStartedAt = useGameStore((state) => state.turnStartedAt)
   const isStale = Boolean(turnStartedAt && (now - turnStartedAt) > 15000)
-  const disabled = gameOver || cooldownMs > 0 || !isMyTurn
+  const hasOpenRoll = Boolean(roll)
+  const disabled = gameOver || !isMyTurn || (!hasOpenRoll && cooldownMs > 0)
 
   const cta = useMemo(() => {
     if (gameOver) return 'Game over'
     if (!activePlayerId) return 'Waiting for players'
     if (!isMyTurn) return `Waiting for ${activePlayer?.name || 'other player'}`
+    if (hasOpenRoll) return 'End turn'
     if (cooldownMs > 0) return `Next roll in ${(cooldownMs / 1000).toFixed(1)}s`
     return 'Roll dice'
-  }, [gameOver, activePlayerId, isMyTurn, cooldownMs, activePlayer])
+  }, [gameOver, activePlayerId, isMyTurn, hasOpenRoll, cooldownMs, activePlayer])
 
   return (
     <section className="dice-tray">
-      <button className="btn" disabled={disabled} onClick={rollDice}>{cta}</button>
-      {isMyTurn && !gameOver && roll && (
-        <button className="btn ghost" onClick={endTurn}>End turn</button>
-      )}
+      <button className="btn" disabled={disabled} onClick={hasOpenRoll ? endTurn : rollDice}>{cta}</button>
       {code && !isMyTurn && !gameOver && isStale && (
         <button className="btn ghost" onClick={takeTurnIfStuck}>Take turn if stuck</button>
       )}
