@@ -266,8 +266,8 @@ export default function App() {
     <div className="page">
       <header>
         <div>
-          <p className="eyebrow">Qwixx</p>
-          <h1>Qwixx Arcade</h1>
+          <p className="eyebrow">CrossDice</p>
+          <h1>CrossDice Arcade</h1>
           <p className="muted">Stable multiplayer with explicit turn state.</p>
         </div>
       </header>
