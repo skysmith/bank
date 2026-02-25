@@ -105,6 +105,7 @@ function DiceTray() {
   const players = useGameStore((state) => state.players)
   const code = useGameStore((state) => state.code)
   const rollDice = useGameStore((state) => state.rollDice)
+  const endTurn = useGameStore((state) => state.endTurn)
   const takeTurnIfStuck = useGameStore((state) => state.takeTurnIfStuck)
 
   const [now, setNow] = useState(Date.now())
@@ -131,6 +132,9 @@ function DiceTray() {
   return (
     <section className="dice-tray">
       <button className="btn" disabled={disabled} onClick={rollDice}>{cta}</button>
+      {isMyTurn && !gameOver && roll && (
+        <button className="btn ghost" onClick={endTurn}>End turn</button>
+      )}
       {code && !isMyTurn && !gameOver && isStale && (
         <button className="btn ghost" onClick={takeTurnIfStuck}>Take turn if stuck</button>
       )}

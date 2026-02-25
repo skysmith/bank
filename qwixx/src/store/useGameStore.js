@@ -277,6 +277,41 @@ export const useGameStore = create((set, get) => ({
     get().syncRemote()
   },
 
+  endTurn: () => {
+    const state = get()
+    if (state.gameOver) return
+    if (!state.roll) return
+    if (!state.activePlayerId || state.playerId !== state.activePlayerId) return
+
+    const players = [...state.players]
+    const activeIdx = findPlayerIndexById(players, state.activePlayerId)
+    if (activeIdx === -1) return
+
+    let gameOver = state.gameOver
+    if (!state.activeUsedWhite && !state.activeUsedColor) {
+      const active = players[activeIdx]
+      const penalties = Math.min(4, (active.penalties || 0) + 1)
+      players[activeIdx] = { ...active, penalties }
+      if (penalties >= 4) gameOver = true
+    }
+
+    const nextIdx = players.length ? (activeIdx + 1) % players.length : activeIdx
+    const nextActive = players[nextIdx]?.id || state.activePlayerId
+
+    set({
+      players,
+      gameOver,
+      activePlayerId: nextActive,
+      roll: null,
+      whiteUsedBy: [],
+      activeUsedWhite: false,
+      activeUsedColor: false,
+      turnStartedAt: Date.now()
+    }, false)
+
+    get().syncRemote()
+  },
+
   takeTurnIfStuck: () => {
     const state = get()
     if (!state.code || state.gameOver) return
