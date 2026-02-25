@@ -192,6 +192,16 @@ export const useGameStore = create((set, get) => ({
     return false
   },
 
+  canLockRow: (color) => {
+    const state = get()
+    if (state.gameOver) return false
+    if (!state.roll) return false
+    if (state.locks[color]) return false
+    const player = getPlayerById(state.players, state.playerId)
+    if (!player) return false
+    return (player.sheet[color] || []).length >= 5
+  },
+
   markNumber: (color, number) => {
     const state = get()
     if (state.gameOver) return
@@ -316,6 +326,19 @@ export const useGameStore = create((set, get) => ({
       turnStartedAt: Date.now()
     }, false)
 
+    get().syncRemote()
+  },
+
+  lockRow: (color) => {
+    const state = get()
+    if (!get().canLockRow(color)) return
+
+    const locks = { ...state.locks, [color]: true }
+    const lockOwners = { ...state.lockOwners, [color]: state.playerId }
+    const lockCount = Object.values(locks).filter(Boolean).length
+    const gameOver = lockCount >= 2 ? true : state.gameOver
+
+    set({ locks, lockOwners, gameOver }, false)
     get().syncRemote()
   },
 

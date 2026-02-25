@@ -12,8 +12,11 @@ function Sheet() {
   const players = useGameStore((state) => state.players)
   const playerId = useGameStore((state) => state.playerId)
   const locks = useGameStore((state) => state.locks)
+  const lockOwners = useGameStore((state) => state.lockOwners)
   const canMark = useGameStore((state) => state.canMark)
   const markNumber = useGameStore((state) => state.markNumber)
+  const canLockRow = useGameStore((state) => state.canLockRow)
+  const lockRow = useGameStore((state) => state.lockRow)
 
   const player = players.find((p) => p.id === playerId)
   if (!player) return null
@@ -38,9 +41,50 @@ function Sheet() {
               </button>
             )
           })}
+          {locks[row.color] ? (
+            <span className="row-lock-pill">Locked{lockOwners[row.color] === playerId ? ' by you' : ''}</span>
+          ) : (
+            <button
+              className="lock-btn"
+              disabled={!canLockRow(row.color)}
+              onClick={() => lockRow(row.color)}
+            >
+              Lock
+            </button>
+          )}
         </div>
       ))}
     </section>
+  )
+}
+
+function GameOverSplash() {
+  const gameOver = useGameStore((state) => state.gameOver)
+  const players = useGameStore((state) => state.players)
+  const scoreForPlayer = useGameStore((state) => state.scoreForPlayer)
+  if (!gameOver) return null
+
+  const ranked = [...players]
+    .map((player) => ({ player, total: scoreForPlayer(player) }))
+    .sort((a, b) => b.total - a.total)
+
+  const labels = ['1st', '2nd', '3rd']
+
+  return (
+    <div className="overlay">
+      <section className="overlay-card">
+        <p className="eyebrow">Game complete</p>
+        <h2>Winner: {ranked[0]?.player?.name || 'Unknown'}</h2>
+        <ol className="results-list">
+          {ranked.slice(0, 3).map((entry, idx) => (
+            <li key={entry.player.id}>
+              <span>{labels[idx] || `${idx + 1}th`} - {entry.player.name}</span>
+              <strong>{entry.total} pts</strong>
+            </li>
+          ))}
+        </ol>
+      </section>
+    </div>
   )
 }
 
@@ -232,6 +276,7 @@ export default function App() {
       <Sheet />
       <PlayerBoards />
       <OnlineControls />
+      <GameOverSplash />
     </div>
   )
 }

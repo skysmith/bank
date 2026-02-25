@@ -7,7 +7,10 @@ header{margin-bottom:1.5rem;}
 .sheet{border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:1rem;margin-top:1.5rem;background:rgba(15,23,42,.8);box-shadow:0 18px 40px rgba(0,0,0,.4);}
 .sheet-row{display:flex;align-items:center;margin-bottom:.6rem;flex-wrap:wrap;gap:.4rem;}
 .row-label{width:70px;font-weight:700;text-transform:capitalize;}
+.row-lock-pill{font-size:.75rem;padding:.2rem .5rem;border:1px solid rgba(255,255,255,.25);border-radius:999px;color:#cbd5f5;}
 .cell{border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.05);color:#fff;padding:.35rem .5rem;border-radius:8px;min-width:40px;cursor:pointer;}
+.lock-btn{border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.06);color:#fff;padding:.35rem .6rem;border-radius:8px;cursor:pointer;}
+.lock-btn:disabled{opacity:.35;cursor:not-allowed;}
 .cell.crossed{position:relative;color:#cbd5f5;border-color:#fff;}
 .cell.crossed::after{content:'';position:absolute;top:50%;left:10%;right:10%;height:2px;background:#fff;transform:rotate(-10deg);} 
 .dice-tray{display:flex;flex-direction:column;gap:.6rem;border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:1rem;background:rgba(15,23,42,.8);box-shadow:0 18px 40px rgba(0,0,0,.4);}
@@ -40,3 +43,9 @@ header{margin-bottom:1.5rem;}
 .mini-card-head{display:flex;justify-content:space-between;font-size:.9rem;}
 .mini-card ul li{display:flex;justify-content:space-between;font-size:.85rem;}
 .mini-penalties{display:flex;gap:.4rem;font-size:.85rem;align-items:center;}
+
+.overlay{position:fixed;inset:0;background:rgba(2,6,23,.72);display:flex;align-items:center;justify-content:center;padding:1rem;z-index:2000;}
+.overlay-card{width:min(560px,100%);border:1px solid rgba(255,255,255,.16);border-radius:18px;background:#0b1120;padding:1.2rem 1rem;box-shadow:0 24px 60px rgba(0,0,0,.5);}
+.overlay-card h2{margin:.3rem 0 1rem;}
+.results-list{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:.5rem;}
+.results-list li{display:flex;justify-content:space-between;align-items:center;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:.55rem .7rem;}
