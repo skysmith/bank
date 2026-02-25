@@ -257,8 +257,6 @@ export const useGameStore = create((set, get) => ({
     }
 
     const roll = rollDiceSet()
-    const nextIdx = players.length ? (activeIdx + 1) % players.length : activeIdx
-    const nextActive = players[nextIdx]?.id || state.activePlayerId
     const now = Date.now()
 
     set({
@@ -269,7 +267,8 @@ export const useGameStore = create((set, get) => ({
       activeUsedWhite: false,
       activeUsedColor: false,
       currentRollerId: state.activePlayerId,
-      activePlayerId: nextActive,
+      // Keep turn ownership with the roller until they explicitly end turn.
+      activePlayerId: state.activePlayerId,
       nextRollAllowedAt: now + ROLL_COOLDOWN_MS,
       turnStartedAt: now
     }, false)
