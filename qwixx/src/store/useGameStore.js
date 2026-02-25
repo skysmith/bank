@@ -195,7 +195,6 @@ export const useGameStore = create((set, get) => ({
   canLockRow: (color) => {
     const state = get()
     if (state.gameOver) return false
-    if (!state.roll) return false
     if (state.locks[color]) return false
     const player = getPlayerById(state.players, state.playerId)
     if (!player) return false
