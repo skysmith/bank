@@ -17,6 +17,7 @@ const ROLL_COOLDOWN_MS = 5000
 const STALE_TURN_MS = 15000
 
 const scoreRow = (crosses) => scoreTable[crosses] || 0
+const utcDayKey = () => new Date().toISOString().slice(0, 10)
 
 const normalizeRoom = (name) => (name || '').trim().replace(/\s+/g, '-').toUpperCase()
 
@@ -47,6 +48,7 @@ const createSoloState = () => {
   const id = makeId()
   return {
     code: null,
+    dayKey: utcDayKey(),
     playerId: id,
     name: 'Solo',
     players: [makePlayer(id, 'Solo')],
@@ -98,6 +100,7 @@ const sanitizeState = (raw) => {
   const rollerExists = players.some((p) => p.id === state.currentRollerId)
   return {
     ...state,
+    dayKey: state.dayKey || utcDayKey(),
     players,
     locks: { ...defaultLocks(), ...(state.locks || {}) },
     lockOwners: { ...defaultLockOwners(), ...(state.lockOwners || {}) },
@@ -143,6 +146,7 @@ const canTakeColor = (state, playerId, color, number) => {
 
 const makeEnvelope = (state) => ({
   code: state.code,
+  dayKey: state.dayKey || utcDayKey(),
   players: state.players,
   roll: state.roll,
   locks: state.locks,
@@ -167,6 +171,32 @@ const rollDiceSet = () => {
     combos.push({ color: rows[i].color, sum: white[1] + colors[i] })
   }
   return { white, colors, combos, whiteSum: white[0] + white[1] }
+}
+
+const resetRoomForNewDay = (state) => {
+  const players = (state.players || []).map((p) => ({
+    ...p,
+    sheet: emptySheet(),
+    penalties: 0
+  }))
+  const firstPlayerId = players[0]?.id || state.activePlayerId || null
+  return {
+    ...state,
+    dayKey: utcDayKey(),
+    players,
+    roll: null,
+    locks: defaultLocks(),
+    lockOwners: defaultLockOwners(),
+    whiteUsedBy: [],
+    activeUsedWhite: false,
+    activeUsedColor: false,
+    activePlayerId: firstPlayerId,
+    currentRollerId: firstPlayerId,
+    nextRollAllowedAt: 0,
+    turnStartedAt: Date.now(),
+    gameOver: false,
+    status: ''
+  }
 }
 
 export const useGameStore = create((set, get) => ({
@@ -388,6 +418,7 @@ export const useGameStore = create((set, get) => ({
     const envelope = {
       ...sanitizeState(baseState()),
       code,
+      dayKey: utcDayKey(),
       players: [player],
       activePlayerId: playerId,
       currentRollerId: playerId,
@@ -427,7 +458,10 @@ export const useGameStore = create((set, get) => ({
       return
     }
 
-    const remote = sanitizeState(data.state)
+    let remote = sanitizeState(data.state)
+    if (remote.dayKey !== utcDayKey()) {
+      remote = resetRoomForNewDay(remote)
+    }
     const idx = findPlayerIndexById(remote.players, playerId)
     if (idx === -1) {
       remote.players = [...remote.players, makePlayer(playerId, cleanName)]
