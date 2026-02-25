@@ -61,6 +61,9 @@ const saveStatus = $("saveStatus");
 const newGameBtn = $("newGameBtn");
 const resetSaveBtn = $("resetSaveBtn");
 
+const MIN_PLAYERS = 2;
+const MAX_PLAYERS = 20;
+
 let setupPlayers = [];
 let game = null;
 
@@ -253,7 +256,7 @@ function renderSetup(){
     playerList.appendChild(li);
   });
 
-  startBtn.disabled = setupPlayers.length < 2 || setupPlayers.length > 4;
+  startBtn.disabled = setupPlayers.length < MIN_PLAYERS || setupPlayers.length > MAX_PLAYERS;
 
   const saved = loadSave();
   resumeBtn.style.display = saved ? "inline-block" : "none";
@@ -420,10 +423,10 @@ async function joinOnlineGame(){
   game.log = game.log || [];
   game.online = { code };
 
-  // if i'm not already in players, try to add me (up to 4)
+  // if i'm not already in players, try to add me (up to MAX_PLAYERS)
   const already = (game.players || []).some(p => p.id === playerId);
   if (!already){
-    if ((game.players || []).length >= 4){
+    if ((game.players || []).length >= MAX_PLAYERS){
       game.log.push(`👀 ${name} joined as spectator (room full).`);
     }else{
       const next = structuredClone(game);
@@ -673,7 +676,7 @@ function tickAI(){
 addBtn.addEventListener("click", () => {
   const name = (nameInput.value || "").trim();
   if (!name) return;
-  if (setupPlayers.length >= 4) return;
+  if (setupPlayers.length >= MAX_PLAYERS) return;
 
   setupPlayers.push({ name, isAI: aiToggle.checked });
   nameInput.value = "";
