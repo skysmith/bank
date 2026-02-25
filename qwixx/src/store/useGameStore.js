@@ -4,6 +4,7 @@ import { rows } from '../constants'
 
 const emptySheet = () => ({ red: [], yellow: [], green: [], blue: [] })
 const defaultLocks = () => ({ red: false, yellow: false, green: false, blue: false })
+const defaultLockOwners = () => ({ red: null, yellow: null, green: null, blue: null })
 
 const makeId = () => (
   typeof crypto !== 'undefined' && crypto.randomUUID
@@ -51,6 +52,7 @@ const createSoloState = () => {
     players: [makePlayer(id, 'Solo')],
     roll: null,
     locks: defaultLocks(),
+    lockOwners: defaultLockOwners(),
     whiteUsedBy: [],
     activeUsedWhite: false,
     activeUsedColor: false,
@@ -98,6 +100,7 @@ const sanitizeState = (raw) => {
     ...state,
     players,
     locks: { ...defaultLocks(), ...(state.locks || {}) },
+    lockOwners: { ...defaultLockOwners(), ...(state.lockOwners || {}) },
     whiteUsedBy: Array.isArray(state.whiteUsedBy) ? state.whiteUsedBy : [],
     activeUsedWhite: Boolean(state.activeUsedWhite),
     activeUsedColor: Boolean(state.activeUsedColor),
@@ -143,6 +146,7 @@ const makeEnvelope = (state) => ({
   players: state.players,
   roll: state.roll,
   locks: state.locks,
+  lockOwners: state.lockOwners,
   whiteUsedBy: state.whiteUsedBy,
   activeUsedWhite: state.activeUsedWhite,
   activeUsedColor: state.activeUsedColor,
@@ -170,7 +174,9 @@ export const useGameStore = create((set, get) => ({
 
   scoreForPlayer: (player) => {
     const rowsScore = rows.reduce((sum, row) => sum + scoreRow((player.sheet[row.color] || []).length), 0)
-    return rowsScore - (player.penalties || 0) * 5
+    const state = get()
+    const lockBonus = Object.values(state.lockOwners || {}).filter((ownerId) => ownerId === player.id).length * 5
+    return rowsScore + lockBonus - (player.penalties || 0) * 5
   },
 
   setStatus: (status) => set({ status }),
@@ -212,6 +218,7 @@ export const useGameStore = create((set, get) => ({
     players[idx] = updated
 
     let locks = state.locks
+    let lockOwners = state.lockOwners
     let gameOver = state.gameOver
 
     const row = rows.find((r) => r.color === color)
@@ -219,6 +226,7 @@ export const useGameStore = create((set, get) => ({
     const endNumber = row.numbers[row.numbers.length - 1]
     if (!locks[color] && number === endNumber && rowCrosses >= 5) {
       locks = { ...locks, [color]: true }
+      lockOwners = { ...lockOwners, [color]: state.playerId }
       const lockCount = Object.values(locks).filter(Boolean).length
       if (lockCount >= 2) gameOver = true
     }
@@ -233,7 +241,7 @@ export const useGameStore = create((set, get) => ({
 
     const activeUsedColor = asColor ? true : state.activeUsedColor
 
-    set({ players, locks, gameOver, whiteUsedBy, activeUsedWhite, activeUsedColor }, false)
+    set({ players, locks, lockOwners, gameOver, whiteUsedBy, activeUsedWhite, activeUsedColor }, false)
     get().syncRemote()
   },
 
@@ -365,6 +373,7 @@ export const useGameStore = create((set, get) => ({
       whiteUsedBy: [],
       activeUsedWhite: false,
       activeUsedColor: false,
+      lockOwners: defaultLockOwners(),
       nextRollAllowedAt: 0,
       turnStartedAt: 0,
       gameOver: false,

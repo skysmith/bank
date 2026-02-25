@@ -51,6 +51,7 @@ function PlayerBoards() {
   const currentRollerId = useGameStore((state) => state.currentRollerId)
   const adjustPenalty = useGameStore((state) => state.adjustPenalty)
   const scoreForPlayer = useGameStore((state) => state.scoreForPlayer)
+  const lockOwners = useGameStore((state) => state.lockOwners)
 
   return (
     <section className="card player-cards">
@@ -61,6 +62,7 @@ function PlayerBoards() {
           const isActive = player.id === activePlayerId
           const isRoller = player.id === currentRollerId
           const total = scoreForPlayer(player)
+          const lockBonus = Object.values(lockOwners || {}).filter((ownerId) => ownerId === player.id).length * 5
 
           return (
             <article key={player.id} className={`mini-card ${isMe ? 'me' : ''}`}>
@@ -80,12 +82,16 @@ function PlayerBoards() {
               <div className="mini-penalties">
                 {isMe ? (
                   <>
+                    <span>Lock bonus: {lockBonus}</span>
                     <span>Penalties: {player.penalties}</span>
                     <button className="penalty-btn" onClick={() => adjustPenalty(1)}>+1</button>
                     <button className="penalty-btn" onClick={() => adjustPenalty(-1)}>-1</button>
                   </>
                 ) : (
-                  <span>Penalties: {player.penalties}</span>
+                  <>
+                    <span>Lock bonus: {lockBonus}</span>
+                    <span>Penalties: {player.penalties}</span>
+                  </>
                 )}
               </div>
             </article>
