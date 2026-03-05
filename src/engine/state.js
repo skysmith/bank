@@ -2,6 +2,8 @@ export function makeGame(players){
   // players: [{name, isAI}]
   return {
     version: 1,
+    status: "active", // "lobby" | "active" | "finished"
+    hostId: null,
     round: 1,
     tally: 0,
     turnCount: 0,          // total turns started this round

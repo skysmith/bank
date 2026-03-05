@@ -4,7 +4,7 @@ import { applyRoll } from "./engine/rules.js";
 import { startTurn, bankActivePlayer, bankOffTurn, bustActivePlayer, maybeAdvanceRound, afterSafeRollPassTurn } from "./engine/turns.js";
 import { loadSave, save, clearSave } from "./storage/local.js";
 
-import { makeCode, createGameRow, fetchGameRow, updateGameRow, subscribeToGame } from "./net/games.js";
+import { makeCode, createGameRow, fetchGameRow, updateGameRow, rpcGameAction, subscribeToGame } from "./net/games.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -43,6 +43,13 @@ const onlineStatus = $("onlineStatus");
 
 const gameCodeEl = $("gameCode");
 const copyCodeBtn = $("copyCodeBtn");
+const shareCodeBtn = $("shareCodeBtn");
+const onlineLobby = $("onlineLobby");
+const lobbyHeadline = $("lobbyHeadline");
+const lobbyStatus = $("lobbyStatus");
+const startOnlineBtn = $("startOnlineBtn");
+const spectatorBanner = $("spectatorBanner");
+const spectatorText = $("spectatorText");
 
 const roundNum = $("roundNum");
 const turnCount = $("turnCount");
@@ -74,11 +81,13 @@ let session = {
   version: 0,
   unsubscribe: null,
   playerId: null,
-  name: null
+  name: null,
+  isSpectator: false
 };
 
 // prevents double-roll / double-bank while an online update is in flight
 let pendingOnlineAction = false;
+let onlineSyncLabel = "online ✓";
 
 const THEME_KEY = 'bank_theme_v1';
 
@@ -121,6 +130,38 @@ function setSaveStatus(txt){ if (saveStatus) saveStatus.textContent = txt; }
 
 function escapeHtml(s){
   return (s || "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[c]));
+}
+
+function normalizeGame(g){
+  if (!g) return g;
+  ensurePlayerIds(g);
+  g.log = g.log || [];
+  g.status = g.status || (g.round > 10 ? "finished" : "active");
+  g.hostId = g.hostId || g.players?.[0]?.id || null;
+  return g;
+}
+
+function isLobby(g = game){
+  return !!g && g.status === "lobby";
+}
+
+function isActiveGame(g = game){
+  return !!g && g.status === "active" && !isGameOver(g);
+}
+
+function resetOnlineFlags(label = "online ✓"){
+  pendingOnlineAction = false;
+  onlineSyncLabel = label;
+}
+
+function setSyncState(label){
+  onlineSyncLabel = label;
+  renderGame();
+}
+
+function roomShareText(){
+  const base = window.location.origin + window.location.pathname;
+  return `Join my Bank Dice game. Code: ${session.code}. Open ${base}?play=bank-online`;
 }
 
 
@@ -205,9 +246,11 @@ function getOrMakePlayerId(){
 
 function canIAct(){
   if (!game) return false;
+  if (!isActiveGame()) return false;
   if (session.mode !== "online") return true;
 
   if (pendingOnlineAction) return false;
+  if (session.isSpectator) return false;
 
   const me = session.playerId;
   const activeP = game.players?.[game.activeIdx];
@@ -217,8 +260,10 @@ function canIAct(){
 
 function canUseActiveBank(){
   if (!game) return false;
+  if (!isActiveGame()) return false;
   if (session.mode !== "online") return true;
   if (pendingOnlineAction) return false;
+  if (session.isSpectator) return false;
   const activeP = game.players?.[game.activeIdx];
   if (!activeP) return false;
   return activeP.id === session.playerId;
@@ -226,13 +271,23 @@ function canUseActiveBank(){
 
 function canIBankPlayer(player){
   if (!game || !player) return false;
+  if (!isActiveGame()) return false;
   const idx = findPlayerIndexById(player.id);
   if (idx === -1) return false;
   if (game.roundStatus[idx]?.done) return false;
 
   if (session.mode !== "online") return true;
   if (pendingOnlineAction) return false;
+  if (session.isSpectator) return false;
   return session.playerId === player.id;
+}
+
+function canStartOnlineGame(){
+  if (session.mode !== "online" || !game) return false;
+  if (!isLobby()) return false;
+  if (pendingOnlineAction) return false;
+  if (game.players.length < MIN_PLAYERS) return false;
+  return game.hostId === session.playerId;
 }
 
 function setOnlineStatus(msg){
@@ -264,6 +319,7 @@ function renderSetup(){
 
 function renderGame(){
   if (!game) return;
+  normalizeGame(game);
 
   // online code display
   if (gameCodeEl) gameCodeEl.textContent = session.mode === "online" ? session.code : "—";
@@ -271,10 +327,10 @@ function renderGame(){
   roundNum.textContent = String(Math.min(game.round, 10));
   turnCount.textContent = String(game.turnCount);
   tally.textContent = String(game.tally);
-  phaseText.textContent = phaseLabel(game);
+  phaseText.textContent = isLobby() ? "Invite players, then start the room." : phaseLabel(game);
 
   const ap = game.players[game.activeIdx];
-  active.textContent = ap ? ap.name : "—";
+  active.textContent = isLobby() ? "waiting" : (ap ? ap.name : "—");
 
   d1.textContent = game.lastRoll ? String(game.lastRoll.d1) : "—";
   d2.textContent = game.lastRoll ? String(game.lastRoll.d2) : "—";
@@ -282,7 +338,43 @@ function renderGame(){
   logEl.innerHTML = (game.log || []).slice(-12).map(line => `<div>${escapeHtml(line)}</div>`).join("");
 
   const over = isGameOver(game);
+  const lobby = isLobby();
   const iCanAct = canIAct();
+  const roomStatus = session.mode === "online"
+    ? (lobby ? "lobby" : over ? "finished" : "live")
+    : "local";
+
+  if (onlineLobby){
+    onlineLobby.style.display = session.mode === "online" && lobby ? "flex" : "none";
+  }
+  if (copyCodeBtn){
+    copyCodeBtn.style.display = session.mode === "online" ? "inline-flex" : "none";
+  }
+  if (shareCodeBtn){
+    shareCodeBtn.style.display = session.mode === "online" ? "inline-flex" : "none";
+  }
+  if (lobbyHeadline){
+    lobbyHeadline.textContent = game.players.length < MIN_PLAYERS
+      ? `waiting for ${MIN_PLAYERS - game.players.length} more player${MIN_PLAYERS - game.players.length === 1 ? "" : "s"}`
+      : "ready to start";
+  }
+  if (lobbyStatus){
+    lobbyStatus.textContent = canStartOnlineGame()
+      ? "Everyone is in. Start the game when the room is ready."
+      : `Players joined: ${game.players.length}. Share the code and wait for the host.`;
+  }
+  if (startOnlineBtn){
+    startOnlineBtn.disabled = !canStartOnlineGame();
+  }
+
+  if (spectatorBanner){
+    spectatorBanner.style.display = session.mode === "online" && session.isSpectator ? "flex" : "none";
+  }
+  if (spectatorText){
+    spectatorText.textContent = lobby
+      ? "You are watching the lobby. Only seated players can start."
+      : "This game already started before you joined. Watch this round, then create a new room for the next game.";
+  }
 
   scoreboard.innerHTML = "";
   game.players.forEach((p, idx) => {
@@ -316,22 +408,22 @@ function renderGame(){
     scoreboard.appendChild(card);
   });
 
-rollBtn.disabled = over || !iCanAct;
-bankBtn.disabled = over || !canUseActiveBank();
-  nextRoundBtn.disabled = !isRoundOver(game) || over || (session.mode === "online" && !iCanAct);
+  rollBtn.disabled = over || lobby || !iCanAct;
+  bankBtn.disabled = over || lobby || !canUseActiveBank();
+  nextRoundBtn.disabled = lobby || !isRoundOver(game) || over || (session.mode === "online" && !iCanAct);
 
   // local save only in local mode
   if (session.mode === "local"){
     setSaveStatus(save(game) ? "saved ✓" : "save failed");
   }else{
-    setSaveStatus(pendingOnlineAction ? "syncing…" : "online ✓");
+    setSaveStatus(pendingOnlineAction ? "syncing…" : `${onlineSyncLabel} · ${roomStatus}`);
   }
 }
 
 // ---------- local mode ----------
 function startNewLocalGame(players){
-  session = { ...session, mode: "local", code: null, version: 0 };
-  pendingOnlineAction = false;
+  session = { ...session, mode: "local", code: null, version: 0, isSpectator: false };
+  resetOnlineFlags();
 
   game = makeGame(players);
   ensurePlayerIds(game);
@@ -345,12 +437,10 @@ function resumeSaved(){
   const saved = loadSave();
   if (!saved) return;
 
-  session = { ...session, mode: "local", code: null, version: 0 };
-  pendingOnlineAction = false;
+  session = { ...session, mode: "local", code: null, version: 0, isSpectator: false };
+  resetOnlineFlags();
 
-  game = saved;
-  ensurePlayerIds(game);
-  game.log = game.log || [];
+  game = normalizeGame(saved);
   showGame();
   renderGame();
   tickAI();
@@ -369,6 +459,8 @@ async function createOnlineGame(){
 
   // create initial game state with exactly 1 player (host)
   const g = makeGame([{ name, isAI: false }]);
+  g.status = "lobby";
+  g.hostId = playerId;
   g.players = [{ ...g.players[0], id: playerId }]; // pin host id
   g.log.push("🟩 online game created.");
   g.online = { code };
@@ -381,12 +473,12 @@ async function createOnlineGame(){
   session.version = 0;
   session.playerId = playerId;
   session.name = name;
+  session.isSpectator = false;
 
-  pendingOnlineAction = false;
+  resetOnlineFlags();
 
   attachOnlineSubscription(code);
-  game = g;
-  ensurePlayerIds(game);
+  game = normalizeGame(g);
 
   showGame();
   renderGame();
@@ -415,19 +507,19 @@ async function joinOnlineGame(){
   session.version = row.version;
   session.playerId = playerId;
   session.name = name;
+  session.isSpectator = false;
 
-  pendingOnlineAction = false;
+  resetOnlineFlags();
 
-  game = row.state;
-  ensurePlayerIds(game);
-  game.log = game.log || [];
+  game = normalizeGame(row.state);
   game.online = { code };
 
   // if i'm not already in players, try to add me (up to MAX_PLAYERS)
   const already = (game.players || []).some(p => p.id === playerId);
   if (!already){
-    if ((game.players || []).length >= MAX_PLAYERS){
-      game.log.push(`👀 ${name} joined as spectator (room full).`);
+    if (game.status !== "lobby" || (game.players || []).length >= MAX_PLAYERS){
+      session.isSpectator = true;
+      onlineSyncLabel = "spectating";
     }else{
       const next = structuredClone(game);
       next.players.push({ name, isAI:false, total:0, rounds:[], id: playerId });
@@ -435,11 +527,15 @@ async function joinOnlineGame(){
       next.log.push(`➕ ${name} joined.`);
       try{
         const updated = await updateGameRow(code, next, row.version);
-        game = updated.state;
-  ensurePlayerIds(game);
+        game = normalizeGame(updated.state);
         session.version = updated.version;
       }catch(e){
         console.warn("join update conflict (ok)", e);
+        const fresh = await fetchGameRow(code);
+        session.version = fresh.version;
+        game = normalizeGame(fresh.state);
+        session.isSpectator = !(game.players || []).some(p => p.id === playerId);
+        onlineSyncLabel = session.isSpectator ? "spectating" : "online ✓";
       }
     }
   }
@@ -448,6 +544,25 @@ async function joinOnlineGame(){
   showGame();
   renderGame();
   setOnlineStatus(`joined: ${code}`);
+}
+
+async function hydrateOnlineState(code, { reconnect = false, silent = false } = {}){
+  if (!code) return;
+  if (!silent) onlineSyncLabel = reconnect ? "reconnecting…" : "syncing…";
+  try{
+    const row = await fetchGameRow(code);
+    session.version = row.version;
+    game = normalizeGame(row.state);
+    game.online = { code };
+    session.isSpectator = !(game.players || []).some(p => p.id === session.playerId);
+    onlineSyncLabel = session.isSpectator ? "spectating" : "online ✓";
+    if (reconnect) attachOnlineSubscription(code);
+    renderGame();
+  }catch(e){
+    console.warn("online refresh failed", e);
+    onlineSyncLabel = "offline?";
+    renderGame();
+  }
 }
 
 function attachOnlineSubscription(code){
@@ -459,15 +574,20 @@ function attachOnlineSubscription(code){
   session.unsubscribe = subscribeToGame(code, (newRow) => {
     if (typeof newRow.version === "number" && newRow.version >= session.version){
       session.version = newRow.version;
-      game = newRow.state;
-      ensurePlayerIds(game);
-      game.log = game.log || [];
+      game = normalizeGame(newRow.state);
       game.online = { code };
+      session.isSpectator = !(game.players || []).some(p => p.id === session.playerId);
 
       // once we receive the authoritative update, we’re definitely not “pending”
-      pendingOnlineAction = false;
+      resetOnlineFlags(session.isSpectator ? "spectating" : "online ✓");
 
       renderGame();
+    }
+  }, (status) => {
+    if (status === "SUBSCRIBED"){
+      setSyncState(session.isSpectator ? "spectating" : "online ✓");
+    }else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED"){
+      setSyncState("reconnecting…");
     }
   });
 }
@@ -477,23 +597,24 @@ async function pushOnlineUpdate(mutatorFn, opts = {}){
   if (pendingOnlineAction) return;
 
   pendingOnlineAction = true;
+  onlineSyncLabel = "syncing…";
   renderGame(); // disable buttons immediately
 
   const code = session.code;
   const expectedVersion = session.version;
 
   const next = structuredClone(game);
-  ensurePlayerIds(next);
+  normalizeGame(next);
 
   if (requireTurn){
     const ap = next.players?.[next.activeIdx];
     if (!ap || ap.id !== session.playerId){
-      pendingOnlineAction = false;
+      resetOnlineFlags(session.isSpectator ? "spectating" : "online ✓");
       renderGame();
       return;
     }
   }else if (!session.playerId){
-    pendingOnlineAction = false;
+    resetOnlineFlags(session.isSpectator ? "spectating" : "online ✓");
     renderGame();
     return;
   }
@@ -503,28 +624,47 @@ async function pushOnlineUpdate(mutatorFn, opts = {}){
 
     const updated = await updateGameRow(code, next, expectedVersion);
     session.version = updated.version;
-    game = updated.state;
-    ensurePlayerIds(game);
+    game = normalizeGame(updated.state);
     game.online = { code };
 
-    pendingOnlineAction = false;
+    resetOnlineFlags(session.isSpectator ? "spectating" : "online ✓");
     renderGame();
   }catch(e){
     console.warn("update failed, refetching", e);
-    try{
-      const row = await fetchGameRow(code);
-      session.version = row.version;
-      game = row.state;
-      ensurePlayerIds(game);
-      game.online = { code };
-    } finally {
-      pendingOnlineAction = false;
-      renderGame();
-    }
+    resetOnlineFlags("syncing…");
+    await hydrateOnlineState(code, { silent: true });
   }
 }
 
 // ---------- gameplay actions ----------
+async function pushServerRoll(){
+  if (pendingOnlineAction) return;
+  pendingOnlineAction = true;
+  onlineSyncLabel = "rolling…";
+  renderGame();
+
+  try{
+    const result = await rpcGameAction("bank_roll_turn", {
+      p_code: session.code,
+      p_player_id: session.playerId,
+      p_expected_version: session.version
+    });
+    const updated = Array.isArray(result) ? result[0] : result;
+    if (!updated) throw new Error("Server roll failed.");
+    session.version = updated.version;
+    game = normalizeGame(updated.state);
+    game.online = { code: session.code };
+    session.isSpectator = !(game.players || []).some(p => p.id === session.playerId);
+    resetOnlineFlags(session.isSpectator ? "spectating" : "verified roll ✓");
+    renderGame();
+  }catch(e){
+    console.warn("verified roll failed", e);
+    resetOnlineFlags("verified roll unavailable");
+    await hydrateOnlineState(session.code, { silent: true });
+    setOnlineStatus(`roll failed: ${e.message || e}`);
+  }
+}
+
 function localRoll(){
   startTurn(game);
 
@@ -596,29 +736,7 @@ async function onRoll(){
   if (!canIAct()) return;
 
   if (session.mode === "online"){
-    await pushOnlineUpdate((g) => {
-      startTurn(g);
-
-      const r = rollDice();
-      const res = applyRoll(g, r);
-      const who = g.players[g.activeIdx].name;
-
-      if (res.special === "lucky7"){
-        g.log.push(`🎲 ${who} rolled 7 → +70. tally = ${g.tally}.`);
-        afterSafeRollPassTurn(g);
-      }else if (res.special === "bust7"){
-        g.log.push(`🎲 ${who} rolled 7 → 💥 bust.`);
-        bustActivePlayer(g);
-      }else if (res.special === "double"){
-        g.log.push(`🎲 ${who} rolled ${r.d1}-${r.d2} (+${r.sum}) → doubles! tally doubled → ${g.tally}.`);
-        afterSafeRollPassTurn(g);
-      }else{
-        g.log.push(`🎲 ${who} rolled ${r.d1}-${r.d2} (+${r.sum}). tally = ${g.tally}.`);
-        afterSafeRollPassTurn(g);
-      }
-
-      maybeAdvanceRound(g);
-    });
+    await pushServerRoll();
   }else{
     localRoll();
     renderGame();
@@ -635,6 +753,10 @@ async function onBank(){
 
 async function onNextRound(){
   if (!game) return;
+  if (isLobby()){
+    if (canStartOnlineGame()) await onStartOnlineGame();
+    return;
+  }
   if (!isRoundOver(game)) return;
   if (session.mode === "online" && !canIAct()) return;
 
@@ -647,6 +769,16 @@ async function onNextRound(){
     renderGame();
     tickAI();
   }
+}
+
+async function onStartOnlineGame(){
+  if (!game || !canStartOnlineGame()) return;
+  await pushOnlineUpdate((g) => {
+    if (g.status !== "lobby") return;
+    g.status = "active";
+    g.hostId = g.hostId || session.playerId;
+    g.log.push(`🚀 ${g.players.length} players ready. game started.`);
+  }, { requireTurn: false });
 }
 
 // AI is local-only for now
@@ -672,6 +804,38 @@ function tickAI(){
   }, 550);
 }
 
+function resetSessionToLocal({ clearPlayers = false } = {}){
+  if (session.unsubscribe){
+    session.unsubscribe();
+    session.unsubscribe = null;
+  }
+
+  session = {
+    ...session,
+    mode: "local",
+    code: null,
+    version: 0,
+    name: null,
+    isSpectator: false
+  };
+  resetOnlineFlags();
+  game = null;
+  if (clearPlayers) setupPlayers = [];
+}
+
+function installOnlineResync(){
+  const refresh = () => {
+    if (session.mode !== "online" || !session.code) return;
+    hydrateOnlineState(session.code, { reconnect: true });
+  };
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") refresh();
+  });
+  window.addEventListener("pageshow", refresh);
+  window.addEventListener("online", refresh);
+}
+
 // ---------- setup handlers ----------
 addBtn.addEventListener("click", () => {
   const name = (nameInput.value || "").trim();
@@ -683,6 +847,11 @@ addBtn.addEventListener("click", () => {
   renderSetup();
 });
 nameInput.addEventListener("keydown", (e) => { if (e.key === "Enter") addBtn.click(); });
+onlineName?.addEventListener("keydown", (e) => { if (e.key === "Enter") createOnlineBtn.click(); });
+joinCodeInput?.addEventListener("input", () => {
+  joinCodeInput.value = normalizeCode(joinCodeInput.value).slice(0, 6);
+});
+joinCodeInput?.addEventListener("keydown", (e) => { if (e.key === "Enter") joinOnlineBtn.click(); });
 
 startBtn.addEventListener("click", () => startNewLocalGame(setupPlayers));
 resumeBtn.addEventListener("click", () => resumeSaved());
@@ -708,6 +877,7 @@ backFromOnline?.addEventListener("click", () => showLanding());
 rollBtn.addEventListener("click", onRoll);
 bankBtn.addEventListener("click", onBank);
 nextRoundBtn.addEventListener("click", onNextRound);
+startOnlineBtn?.addEventListener("click", onStartOnlineGame);
 
 createOnlineBtn.addEventListener("click", async () => {
   try{
@@ -740,35 +910,43 @@ copyCodeBtn?.addEventListener("click", async () => {
   }
 });
 
+shareCodeBtn?.addEventListener("click", async () => {
+  if (session.mode !== "online" || !session.code) return;
+  const shareData = {
+    title: "Bank Dice",
+    text: roomShareText()
+  };
+  try{
+    if (navigator.share){
+      await navigator.share(shareData);
+      setSaveStatus("shared ✓");
+    }else if (navigator.clipboard){
+      await navigator.clipboard.writeText(shareData.text);
+      setSaveStatus("invite copied ✓");
+    }
+    setTimeout(() => renderGame(), 800);
+  }catch{
+    renderGame();
+  }
+});
+
 newGameBtn.addEventListener("click", () => {
   clearSave();
-  if (session.unsubscribe){
-    session.unsubscribe();
-    session.unsubscribe = null;
-  }
-  session = { ...session, mode: "local", code: null, version: 0 };
-  pendingOnlineAction = false;
-  game = null;
+  resetSessionToLocal();
   showHub();
   renderSetup();
 });
 
 resetSaveBtn.addEventListener("click", () => {
   clearSave();
-  if (session.unsubscribe){
-    session.unsubscribe();
-    session.unsubscribe = null;
-  }
-  session = { ...session, mode: "local", code: null, version: 0 };
-  pendingOnlineAction = false;
-  game = null;
-  setupPlayers = [];
+  resetSessionToLocal({ clearPlayers: true });
   showHub();
   renderSetup();
 });
 
 initTheme();
 renderSetup();
+installOnlineResync();
 setOnlineStatus("");
 if (!bootFromQuery()){
   showHub();

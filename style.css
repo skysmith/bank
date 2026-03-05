@@ -39,13 +39,14 @@ body{
   background: radial-gradient(900px 700px at 20% 0%, var(--bg-soft) 0%, var(--bg) 55%);
   color:var(--ink);
   transition: background .3s ease, color .3s ease;
+  padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
 .topbar{
   display:flex;
   justify-content:space-between;
   align-items:center;
-  padding:14px 18px;
+  padding: calc(14px + env(safe-area-inset-top, 0)) 18px 14px;
   border-bottom:1px solid var(--line);
   background: var(--topbar);
   backdrop-filter: blur(10px);
@@ -66,7 +67,7 @@ body{
 }
 .brand-link:hover{ color:var(--muted); }
 
-.wrap{ max-width: 980px; margin: 18px auto 60px; padding: 0 14px; }
+.wrap{ max-width: 980px; margin: 18px auto 60px; padding: 0 14px calc(20px + env(safe-area-inset-bottom, 0)); }
 
 .card{
   border:1px solid var(--line);
@@ -90,6 +91,7 @@ h2{ margin:16px 0 8px; font-size:16px; }
 input[type="text"]{
   width:100%;
   padding:10px 12px;
+  font-size:16px;
   border-radius:12px;
   border:1px solid var(--line);
   background:var(--surface);
@@ -100,6 +102,7 @@ input[type="text"]{
 
 button{
   padding:10px 12px;
+  min-height:44px;
   border-radius:12px;
   border:1px solid var(--line);
   background: var(--btn);
@@ -107,6 +110,7 @@ button{
   cursor:pointer;
   font-weight:800;
   transition: background .2s ease, color .2s ease, border-color .2s ease;
+  touch-action: manipulation;
 }
 button:hover{ background: var(--btn2); }
 button:disabled{ opacity:.5; cursor:not-allowed; }
@@ -158,6 +162,12 @@ button:disabled{ opacity:.5; cursor:not-allowed; }
   color: var(--muted);
 }
 .pill span{ color: var(--ink); font-weight:900; }
+.pill-button{
+  border-radius:999px;
+  padding:6px 12px;
+  min-height: 0;
+  font-size:12.5px;
+}
 
 .big{
   display:flex;
@@ -192,6 +202,25 @@ button:disabled{ opacity:.5; cursor:not-allowed; }
 }
 
 .actions{ display:flex; gap:10px; }
+.panel{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin: 0 0 14px;
+  padding:12px 14px;
+  border:1px solid var(--line);
+  border-radius:14px;
+  background: var(--surface);
+}
+.panel.warning{
+  border-color: color-mix(in srgb, var(--warn) 40%, var(--line));
+}
+.panel-copy{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
 
 .log{
   margin:14px 0;
@@ -244,4 +273,57 @@ button:disabled{ opacity:.5; cursor:not-allowed; }
   width:100%;
   padding:8px 10px;
   font-size:12px;
+}
+
+@media(max-width: 680px){
+  .topbar{
+    flex-wrap:wrap;
+    gap:10px;
+  }
+
+  .topbar-actions{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    width:100%;
+  }
+
+  .topbar-actions button{
+    flex:1 1 120px;
+  }
+
+  .row{
+    flex-wrap:wrap;
+  }
+
+  .row > *{
+    flex: 1 1 100%;
+  }
+
+  .game-header,
+  .big,
+  .panel,
+  .score-top{
+    flex-direction:column;
+    align-items:stretch;
+  }
+
+  .pillbar,
+  .actions{
+    width:100%;
+  }
+
+  .actions button,
+  .pill-button{
+    flex:1 1 0;
+  }
+
+  .dice{
+    justify-content:space-between;
+  }
+
+  .die{
+    width:calc(50% - 6px);
+    height:72px;
+  }
 }

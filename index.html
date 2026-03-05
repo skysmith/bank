@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>bank dice</title>
   <link rel="stylesheet" href="./style.css" />
 </head>
@@ -140,8 +140,27 @@
           <div class="muted small" id="phaseText">—</div>
         </div>
         <div class="pillbar">
+          <div class="pill">room <span id="gameCode">—</span></div>
+          <button id="copyCodeBtn" class="ghost pill-button" type="button">copy code</button>
+          <button id="shareCodeBtn" class="ghost pill-button" type="button">share</button>
           <div class="pill">round <span id="roundNum">1</span>/10</div>
           <div class="pill">turns <span id="turnCount">0</span></div>
+        </div>
+      </div>
+
+      <div id="onlineLobby" class="panel" style="display:none;">
+        <div class="panel-copy">
+          <div class="label">online lobby</div>
+          <div class="value" id="lobbyHeadline">waiting for players</div>
+          <div class="muted small" id="lobbyStatus">Share the room code, then start once everyone is in.</div>
+        </div>
+        <button id="startOnlineBtn" class="primary" type="button">start online game</button>
+      </div>
+
+      <div id="spectatorBanner" class="panel warning" style="display:none;">
+        <div>
+          <div class="label">spectating</div>
+          <div class="muted small" id="spectatorText">This game already started. You can watch this round and join the next game.</div>
         </div>
       </div>
 

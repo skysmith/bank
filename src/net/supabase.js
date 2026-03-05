@@ -3,10 +3,6 @@ import { createClient } from "@supabase/supabase-js";
 const url = import.meta.env.VITE_SUPABASE_URL;
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Debug logging (safe — only logs first part of key)
-console.log("SUPABASE_URL:", url);
-console.log("SUPABASE_KEY_HEAD:", key ? key.slice(0, 20) : "undefined");
-
 // Basic validation
 if (!url) {
   throw new Error("VITE_SUPABASE_URL is missing. Check .env.local and restart Vite.");

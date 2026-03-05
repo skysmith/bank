@@ -97,6 +97,7 @@ export function maybeAdvanceRound(game){
 
   if (game.round >= 10){
     game.round = 11; // mark game over
+    game.status = "finished";
     announceWinners(game);
     return true;
   }

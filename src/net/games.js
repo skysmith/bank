@@ -44,7 +44,13 @@ export async function updateGameRow(code, nextState, expectedVersion) {
   return data;
 }
 
-export function subscribeToGame(code, onRow) {
+export async function rpcGameAction(action, params) {
+  const { data, error } = await supabase.rpc(action, params);
+  if (error) throw error;
+  return data;
+}
+
+export function subscribeToGame(code, onRow, onStatus) {
   const channel = supabase
     .channel(`game:${code}`)
     .on(
@@ -54,7 +60,9 @@ export function subscribeToGame(code, onRow) {
         if (payload?.new) onRow(payload.new);
       }
     )
-    .subscribe();
+    .subscribe((status) => {
+      if (onStatus) onStatus(status);
+    });
 
   return () => supabase.removeChannel(channel);
 }
