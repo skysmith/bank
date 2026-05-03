@@ -4,6 +4,7 @@ export function makeGame(players){
     version: 1,
     status: "active", // "lobby" | "active" | "finished"
     hostId: null,
+    hostName: "Host",
     round: 1,
     tally: 0,
     turnCount: 0,          // total turns started this round

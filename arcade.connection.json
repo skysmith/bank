@@ -1,0 +1,12 @@
+{
+  "id": "bank-dice",
+  "title": "Bank Dice",
+  "image": "./assets/covers/bank-dice.svg",
+  "summary": "A quick shared-station dice game that works well as a slower breather between action cabinets.",
+  "players": "2+ couch turns",
+  "controls": "Shared local station",
+  "launchText": "Open cabinet",
+  "path": "../bank/index.html",
+  "badge": "Turn Based",
+  "hidden": true
+}

@@ -111,19 +111,20 @@
 
     <section class="card" id="onlinePanel" style="display:none;">
       <h1>online multiplayer</h1>
-      <p class="muted small">create a game → share the code → friends join from any device.</p>
+      <p class="muted small" id="onlineIntro">create a host display → share the player link → remote friends can spectate too.</p>
 
       <div class="row">
-        <input id="onlineName" type="text" placeholder="your name (for online)" maxlength="20" />
+        <input id="onlineName" type="text" placeholder="display name (e.g. living room tv)" maxlength="20" />
       </div>
 
       <div class="row">
-        <button id="createOnlineBtn" class="primary">create online game</button>
+        <button id="createOnlineBtn" class="primary">create host display</button>
       </div>
 
       <div class="row">
         <input id="joinCodeInput" type="text" placeholder="game code (e.g. K9F2Q7)" maxlength="10" />
-        <button id="joinOnlineBtn">join</button>
+        <button id="joinOnlineBtn">join as player</button>
+        <button id="watchOnlineBtn" class="ghost" type="button">watch</button>
       </div>
 
       <div class="row">
@@ -142,7 +143,8 @@
         <div class="pillbar">
           <div class="pill">room <span id="gameCode">—</span></div>
           <button id="copyCodeBtn" class="ghost pill-button" type="button">copy code</button>
-          <button id="shareCodeBtn" class="ghost pill-button" type="button">share</button>
+          <button id="sharePlayerBtn" class="ghost pill-button" type="button">share player link</button>
+          <button id="shareWatchBtn" class="ghost pill-button" type="button">share watcher link</button>
           <div class="pill">round <span id="roundNum">1</span>/10</div>
           <div class="pill">turns <span id="turnCount">0</span></div>
         </div>
@@ -157,9 +159,16 @@
         <button id="startOnlineBtn" class="primary" type="button">start online game</button>
       </div>
 
+      <div id="displayBanner" class="panel info" style="display:none;">
+        <div>
+          <div class="label">host display</div>
+          <div class="muted small" id="displayText">This screen is the shared board. Players use their phones to join and control turns.</div>
+        </div>
+      </div>
+
       <div id="spectatorBanner" class="panel warning" style="display:none;">
         <div>
-          <div class="label">spectating</div>
+          <div class="label" id="spectatorLabel">spectating</div>
           <div class="muted small" id="spectatorText">This game already started. You can watch this round and join the next game.</div>
         </div>
       </div>
@@ -200,5 +209,6 @@
   </main>
 
   <script type="module" src="./src/app.js"></script>
+  <script defer src="../arcade/shared/arcade-home.js" data-arcade-href="../arcade/index.html"></script>
 </body>
 </html>

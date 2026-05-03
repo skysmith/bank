@@ -36,19 +36,25 @@ const startBtn = $("startBtn");
 const resumeBtn = $("resumeBtn");
 
 const onlineName = $("onlineName");
+const onlineIntro = $("onlineIntro");
 const createOnlineBtn = $("createOnlineBtn");
 const joinCodeInput = $("joinCodeInput");
 const joinOnlineBtn = $("joinOnlineBtn");
+const watchOnlineBtn = $("watchOnlineBtn");
 const onlineStatus = $("onlineStatus");
 
 const gameCodeEl = $("gameCode");
 const copyCodeBtn = $("copyCodeBtn");
-const shareCodeBtn = $("shareCodeBtn");
+const sharePlayerBtn = $("sharePlayerBtn");
+const shareWatchBtn = $("shareWatchBtn");
 const onlineLobby = $("onlineLobby");
 const lobbyHeadline = $("lobbyHeadline");
 const lobbyStatus = $("lobbyStatus");
 const startOnlineBtn = $("startOnlineBtn");
+const displayBanner = $("displayBanner");
+const displayText = $("displayText");
 const spectatorBanner = $("spectatorBanner");
+const spectatorLabel = $("spectatorLabel");
 const spectatorText = $("spectatorText");
 
 const roundNum = $("roundNum");
@@ -81,7 +87,9 @@ let session = {
   version: 0,
   unsubscribe: null,
   playerId: null,
+  hostId: null,
   name: null,
+  role: "local",      // "local" | "host" | "player" | "spectator"
   isSpectator: false
 };
 
@@ -138,6 +146,7 @@ function normalizeGame(g){
   g.log = g.log || [];
   g.status = g.status || (g.round > 10 ? "finished" : "active");
   g.hostId = g.hostId || g.players?.[0]?.id || null;
+  g.hostName = g.hostName || "Host";
   return g;
 }
 
@@ -161,7 +170,63 @@ function setSyncState(label){
 
 function roomShareText(){
   const base = window.location.origin + window.location.pathname;
-  return `Join my Bank Dice game. Code: ${session.code}. Open ${base}?play=bank-online`;
+  return `Join my Bank Dice game. Code: ${session.code}. Open ${base}?play=bank-player&code=${session.code}`;
+}
+
+function roomWatchText(){
+  const base = window.location.origin + window.location.pathname;
+  return `Watch my Bank Dice game live. Code: ${session.code}. Open ${base}?play=bank-watch&code=${session.code}`;
+}
+
+function roomHostText(){
+  const base = window.location.origin + window.location.pathname;
+  return `${base}?play=bank-host`;
+}
+
+function isHostView(){
+  return session.role === "host";
+}
+
+function isPlayerView(){
+  return session.role === "player";
+}
+
+function isWatcherView(){
+  return session.role === "spectator";
+}
+
+function setAppRoleClass(){
+  document.body.classList.remove("app-host", "app-player", "app-spectator");
+  if (isHostView()) document.body.classList.add("app-host");
+  if (isPlayerView()) document.body.classList.add("app-player");
+  if (isWatcherView()) document.body.classList.add("app-spectator");
+}
+
+function updateOnlineCopy(){
+  if (!onlineIntro) return;
+  if (isHostView()){
+    onlineIntro.textContent = "create a host display, mirror it to the TV if you want, then share the player link. Remote friends can watch from anywhere.";
+  }else if (isWatcherView()){
+    onlineIntro.textContent = "watch a room live from anywhere. This view is read-only.";
+  }else{
+    onlineIntro.textContent = "join a room from your phone and control your own turns. If the game already started, you can still watch.";
+  }
+}
+
+async function maybeAutoJoinFromQuery(){
+  const params = new URLSearchParams(window.location.search);
+  const play = (params.get("play") || "").toLowerCase();
+  const code = normalizeCode(params.get("code"));
+  if (!code) return;
+  if (play !== "bank-watch") return;
+  if (joinCodeInput) joinCodeInput.value = code;
+  try{
+    setOnlineStatus(`joining watcher ${code}…`);
+    await joinOnlineGame({ watchOnly: true });
+  }catch(e){
+    console.error(e);
+    setOnlineStatus(`watch failed: ${e.message || e}`);
+  }
 }
 
 
@@ -177,6 +242,7 @@ function hideAllScreens(){
 function bootFromQuery(){
   const params = new URLSearchParams(window.location.search);
   const play = (params.get("play") || "").toLowerCase();
+  const code = normalizeCode(params.get("code"));
 
   if (play === "bank"){
     renderSetup();
@@ -184,15 +250,40 @@ function bootFromQuery(){
     return true;
   }
 
+  if (play === "bank-host"){
+    session.role = "host";
+    setAppRoleClass();
+    updateOnlineCopy();
+    showOnlinePanel();
+    setOnlineStatus("name this display and create a room");
+    return true;
+  }
+
   if (play === "bank-local"){
+    session.role = "local";
+    setAppRoleClass();
     renderSetup();
     showSetup();
     return true;
   }
 
-  if (play === "bank-online"){
+  if (play === "bank-online" || play === "bank-player"){
+    session.role = "player";
+    setAppRoleClass();
+    updateOnlineCopy();
     showOnlinePanel();
-    setOnlineStatus("enter a name to start");
+    if (code && joinCodeInput) joinCodeInput.value = code;
+    setOnlineStatus("enter your name to join");
+    return true;
+  }
+
+  if (play === "bank-watch"){
+    session.role = "spectator";
+    setAppRoleClass();
+    updateOnlineCopy();
+    showOnlinePanel();
+    if (code && joinCodeInput) joinCodeInput.value = code;
+    setOnlineStatus(code ? `ready to watch ${code}` : "enter a code to watch");
     return true;
   }
 
@@ -244,6 +335,16 @@ function getOrMakePlayerId(){
   return id;
 }
 
+function getOrMakeHostId(){
+  const key = "bank_dice_host_id_v1";
+  let id = localStorage.getItem(key);
+  if (!id){
+    id = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2));
+    localStorage.setItem(key, id);
+  }
+  return id;
+}
+
 function canIAct(){
   if (!game) return false;
   if (!isActiveGame()) return false;
@@ -287,7 +388,7 @@ function canStartOnlineGame(){
   if (!isLobby()) return false;
   if (pendingOnlineAction) return false;
   if (game.players.length < MIN_PLAYERS) return false;
-  return game.hostId === session.playerId;
+  return game.hostId === session.hostId;
 }
 
 function setOnlineStatus(msg){
@@ -319,6 +420,7 @@ function renderSetup(){
 
 function renderGame(){
   if (!game) return;
+  setAppRoleClass();
   normalizeGame(game);
 
   // online code display
@@ -340,18 +442,23 @@ function renderGame(){
   const over = isGameOver(game);
   const lobby = isLobby();
   const iCanAct = canIAct();
+  const myIdx = findPlayerIndexById(session.playerId);
+  const me = myIdx >= 0 ? game.players[myIdx] : null;
   const roomStatus = session.mode === "online"
     ? (lobby ? "lobby" : over ? "finished" : "live")
     : "local";
 
   if (onlineLobby){
-    onlineLobby.style.display = session.mode === "online" && lobby ? "flex" : "none";
+    onlineLobby.style.display = session.mode === "online" && lobby && !isPlayerView() ? "flex" : "none";
   }
   if (copyCodeBtn){
     copyCodeBtn.style.display = session.mode === "online" ? "inline-flex" : "none";
   }
-  if (shareCodeBtn){
-    shareCodeBtn.style.display = session.mode === "online" ? "inline-flex" : "none";
+  if (sharePlayerBtn){
+    sharePlayerBtn.style.display = session.mode === "online" && isHostView() ? "inline-flex" : "none";
+  }
+  if (shareWatchBtn){
+    shareWatchBtn.style.display = session.mode === "online" && isHostView() ? "inline-flex" : "none";
   }
   if (lobbyHeadline){
     lobbyHeadline.textContent = game.players.length < MIN_PLAYERS
@@ -361,34 +468,51 @@ function renderGame(){
   if (lobbyStatus){
     lobbyStatus.textContent = canStartOnlineGame()
       ? "Everyone is in. Start the game when the room is ready."
-      : `Players joined: ${game.players.length}. Share the code and wait for the host.`;
+      : `Players joined: ${game.players.length}. Host: ${escapeHtml(game.hostName)}.`;
   }
   if (startOnlineBtn){
+    startOnlineBtn.style.display = isHostView() ? "inline-flex" : "none";
     startOnlineBtn.disabled = !canStartOnlineGame();
   }
 
+  if (displayBanner){
+    displayBanner.style.display = session.mode === "online" && isHostView() ? "flex" : "none";
+  }
+  if (displayText){
+    displayText.textContent = lobby
+      ? "This is the shared room display. Mirror it to the TV if you want while players join from phones."
+      : `Shared screen for ${game.hostName}. Phones handle player input while this screen shows the board.`;
+  }
+
   if (spectatorBanner){
-    spectatorBanner.style.display = session.mode === "online" && session.isSpectator ? "flex" : "none";
+    spectatorBanner.style.display = session.mode === "online" && (session.isSpectator || isWatcherView()) ? "flex" : "none";
+  }
+  if (spectatorLabel){
+    spectatorLabel.textContent = isWatcherView() ? "watch mode" : "spectating";
   }
   if (spectatorText){
-    spectatorText.textContent = lobby
-      ? "You are watching the lobby. Only seated players can start."
-      : "This game already started before you joined. Watch this round, then create a new room for the next game.";
+    spectatorText.textContent = isWatcherView()
+      ? "Read-only remote view. Share this with anyone who wants to follow the game from somewhere else."
+      : lobby
+        ? "You are watching the lobby. Only seated players can start."
+        : "This game already started before you joined. Watch this round and create a new room for the next game.";
   }
 
   scoreboard.innerHTML = "";
   game.players.forEach((p, idx) => {
     const card = document.createElement("div");
     card.className = "scorecard";
+    if (p.id === session.playerId) card.classList.add("me");
 
     const status = game.roundStatus[idx];
     const statusTxt = status.done ? (status.busted ? "busted" : "banked") : "playing";
     const activeMark = idx === game.activeIdx ? " ←" : "";
+    const youMark = p.id === session.playerId ? " · you" : "";
 
     card.innerHTML = `
       <div class="score-top">
         <div><strong>${escapeHtml(p.name)}</strong>${activeMark}</div>
-        <div class="muted small">${statusTxt}${p.isAI ? " · ai" : ""}</div>
+        <div class="muted small">${statusTxt}${p.isAI ? " · ai" : ""}${youMark}</div>
       </div>
       <div class="row space-between" style="margin-top:8px;">
         <div class="muted small">total</div>
@@ -408,9 +532,19 @@ function renderGame(){
     scoreboard.appendChild(card);
   });
 
+  if (isPlayerView()){
+    active.textContent = lobby ? "waiting for host" : iCanAct ? "your turn" : (me ? me.name : active.textContent);
+  }
+
+  rollBtn.style.display = session.mode === "online" && !isPlayerView() ? "none" : "inline-flex";
+  bankBtn.style.display = session.mode === "online" && !isPlayerView() ? "none" : "inline-flex";
   rollBtn.disabled = over || lobby || !iCanAct;
   bankBtn.disabled = over || lobby || !canUseActiveBank();
-  nextRoundBtn.disabled = lobby || !isRoundOver(game) || over || (session.mode === "online" && !iCanAct);
+  nextRoundBtn.style.display = session.mode === "online" && !isHostView() ? "none" : "inline-flex";
+  nextRoundBtn.textContent = lobby ? "start round" : "next round";
+  nextRoundBtn.disabled = lobby
+    ? !canStartOnlineGame()
+    : (!isRoundOver(game) || over || (session.mode === "online" && !iCanAct && !isHostView()));
 
   // local save only in local mode
   if (session.mode === "local"){
@@ -422,7 +556,7 @@ function renderGame(){
 
 // ---------- local mode ----------
 function startNewLocalGame(players){
-  session = { ...session, mode: "local", code: null, version: 0, isSpectator: false };
+  session = { ...session, mode: "local", code: null, version: 0, role: "local", isSpectator: false };
   resetOnlineFlags();
 
   game = makeGame(players);
@@ -437,7 +571,7 @@ function resumeSaved(){
   const saved = loadSave();
   if (!saved) return;
 
-  session = { ...session, mode: "local", code: null, version: 0, isSpectator: false };
+  session = { ...session, mode: "local", code: null, version: 0, role: "local", isSpectator: false };
   resetOnlineFlags();
 
   game = normalizeGame(saved);
@@ -455,14 +589,14 @@ async function createOnlineGame(){
   }
 
   const code = makeCode(6);
-  const playerId = getOrMakePlayerId();
+  const hostId = getOrMakeHostId();
 
-  // create initial game state with exactly 1 player (host)
-  const g = makeGame([{ name, isAI: false }]);
+  // create initial game state with a display host and an empty player lobby
+  const g = makeGame([]);
   g.status = "lobby";
-  g.hostId = playerId;
-  g.players = [{ ...g.players[0], id: playerId }]; // pin host id
-  g.log.push("🟩 online game created.");
+  g.hostId = hostId;
+  g.hostName = name;
+  g.log.push(`🟩 ${name} opened a host display.`);
   g.online = { code };
 
   await createGameRow(code, g);
@@ -471,9 +605,12 @@ async function createOnlineGame(){
   session.mode = "online";
   session.code = code;
   session.version = 0;
-  session.playerId = playerId;
+  session.playerId = null;
+  session.hostId = hostId;
   session.name = name;
+  session.role = "host";
   session.isSpectator = false;
+  setAppRoleClass();
 
   resetOnlineFlags();
 
@@ -485,20 +622,20 @@ async function createOnlineGame(){
   setOnlineStatus(`created: ${code}`);
 }
 
-async function joinOnlineGame(){
-  const name = (onlineName.value || "").trim();
-  if (!name){
-    setOnlineStatus("add your name first");
-    return;
-  }
-
+async function joinOnlineGame({ watchOnly = false } = {}){
   const code = normalizeCode(joinCodeInput.value);
   if (!code){
     setOnlineStatus("enter a code");
     return;
   }
 
-  const playerId = getOrMakePlayerId();
+  const name = (onlineName.value || "").trim() || (watchOnly ? "Watcher" : "");
+  if (!watchOnly && !name){
+    setOnlineStatus("add your name first");
+    return;
+  }
+
+  const playerId = watchOnly ? null : getOrMakePlayerId();
   const row = await fetchGameRow(code);
 
   // hydrate
@@ -506,8 +643,11 @@ async function joinOnlineGame(){
   session.code = code;
   session.version = row.version;
   session.playerId = playerId;
+  session.hostId = null;
   session.name = name;
-  session.isSpectator = false;
+  session.role = watchOnly ? "spectator" : "player";
+  session.isSpectator = watchOnly;
+  setAppRoleClass();
 
   resetOnlineFlags();
 
@@ -515,10 +655,11 @@ async function joinOnlineGame(){
   game.online = { code };
 
   // if i'm not already in players, try to add me (up to MAX_PLAYERS)
-  const already = (game.players || []).some(p => p.id === playerId);
-  if (!already){
+  const already = !watchOnly && (game.players || []).some(p => p.id === playerId);
+  if (!watchOnly && !already){
     if (game.status !== "lobby" || (game.players || []).length >= MAX_PLAYERS){
       session.isSpectator = true;
+      session.role = "spectator";
       onlineSyncLabel = "spectating";
     }else{
       const next = structuredClone(game);
@@ -535,6 +676,7 @@ async function joinOnlineGame(){
         session.version = fresh.version;
         game = normalizeGame(fresh.state);
         session.isSpectator = !(game.players || []).some(p => p.id === playerId);
+        session.role = session.isSpectator ? "spectator" : "player";
         onlineSyncLabel = session.isSpectator ? "spectating" : "online ✓";
       }
     }
@@ -543,7 +685,7 @@ async function joinOnlineGame(){
   attachOnlineSubscription(code);
   showGame();
   renderGame();
-  setOnlineStatus(`joined: ${code}`);
+  setOnlineStatus(watchOnly ? `watching: ${code}` : `joined: ${code}`);
 }
 
 async function hydrateOnlineState(code, { reconnect = false, silent = false } = {}){
@@ -554,7 +696,8 @@ async function hydrateOnlineState(code, { reconnect = false, silent = false } = 
     session.version = row.version;
     game = normalizeGame(row.state);
     game.online = { code };
-    session.isSpectator = !(game.players || []).some(p => p.id === session.playerId);
+    session.isSpectator = isWatcherView() || !(game.players || []).some(p => p.id === session.playerId);
+    if (!isHostView()) session.role = session.isSpectator ? "spectator" : "player";
     onlineSyncLabel = session.isSpectator ? "spectating" : "online ✓";
     if (reconnect) attachOnlineSubscription(code);
     renderGame();
@@ -576,7 +719,8 @@ function attachOnlineSubscription(code){
       session.version = newRow.version;
       game = normalizeGame(newRow.state);
       game.online = { code };
-      session.isSpectator = !(game.players || []).some(p => p.id === session.playerId);
+      session.isSpectator = isWatcherView() || !(game.players || []).some(p => p.id === session.playerId);
+      if (!isHostView()) session.role = session.isSpectator ? "spectator" : "player";
 
       // once we receive the authoritative update, we’re definitely not “pending”
       resetOnlineFlags(session.isSpectator ? "spectating" : "online ✓");
@@ -758,12 +902,12 @@ async function onNextRound(){
     return;
   }
   if (!isRoundOver(game)) return;
-  if (session.mode === "online" && !canIAct()) return;
+  if (session.mode === "online" && !canIAct() && !isHostView()) return;
 
   if (session.mode === "online"){
     await pushOnlineUpdate((g) => {
       maybeAdvanceRound(g);
-    });
+    }, { requireTurn: !isHostView() });
   }else{
     maybeAdvanceRound(game);
     renderGame();
@@ -776,7 +920,8 @@ async function onStartOnlineGame(){
   await pushOnlineUpdate((g) => {
     if (g.status !== "lobby") return;
     g.status = "active";
-    g.hostId = g.hostId || session.playerId;
+    g.hostId = g.hostId || session.hostId;
+    g.hostName = g.hostName || session.name || "Host";
     g.log.push(`🚀 ${g.players.length} players ready. game started.`);
   }, { requireTurn: false });
 }
@@ -816,8 +961,12 @@ function resetSessionToLocal({ clearPlayers = false } = {}){
     code: null,
     version: 0,
     name: null,
+    hostId: null,
+    playerId: null,
+    role: "local",
     isSpectator: false
   };
+  setAppRoleClass();
   resetOnlineFlags();
   game = null;
   if (clearPlayers) setupPlayers = [];
@@ -847,7 +996,12 @@ addBtn.addEventListener("click", () => {
   renderSetup();
 });
 nameInput.addEventListener("keydown", (e) => { if (e.key === "Enter") addBtn.click(); });
-onlineName?.addEventListener("keydown", (e) => { if (e.key === "Enter") createOnlineBtn.click(); });
+onlineName?.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter") return;
+  if (isWatcherView()) watchOnlineBtn?.click();
+  else if (isPlayerView()) joinOnlineBtn.click();
+  else createOnlineBtn.click();
+});
 joinCodeInput?.addEventListener("input", () => {
   joinCodeInput.value = normalizeCode(joinCodeInput.value).slice(0, 6);
 });
@@ -868,7 +1022,13 @@ enterBankBtn?.addEventListener("click", () => { renderSetup(); showLanding(); })
 enterVoidBtn?.addEventListener("click", () => { showVoid(); });
 enterQwixxBtn?.addEventListener("click", () => { window.open("/qwixx/index.html", "_blank", "noopener"); });
 goLocalBtn?.addEventListener("click", () => { showSetup(); renderSetup(); });
-goOnlineBtn?.addEventListener("click", () => { showOnlinePanel(); setOnlineStatus("enter a name to start"); });
+goOnlineBtn?.addEventListener("click", () => {
+  session.role = "host";
+  setAppRoleClass();
+  updateOnlineCopy();
+  showOnlinePanel();
+  setOnlineStatus("name this display and create a room");
+});
 backFromBank?.addEventListener("click", () => showHub());
 backFromVoid?.addEventListener("click", () => showHub());
 backFromLocal?.addEventListener("click", () => showLanding());
@@ -899,6 +1059,16 @@ joinOnlineBtn.addEventListener("click", async () => {
   }
 });
 
+watchOnlineBtn?.addEventListener("click", async () => {
+  try{
+    setOnlineStatus("joining watcher…");
+    await joinOnlineGame({ watchOnly: true });
+  }catch(e){
+    console.error(e);
+    setOnlineStatus(`watch failed: ${e.message || e}`);
+  }
+});
+
 copyCodeBtn?.addEventListener("click", async () => {
   if (session.mode !== "online" || !session.code) return;
   try{
@@ -910,7 +1080,7 @@ copyCodeBtn?.addEventListener("click", async () => {
   }
 });
 
-shareCodeBtn?.addEventListener("click", async () => {
+sharePlayerBtn?.addEventListener("click", async () => {
   if (session.mode !== "online" || !session.code) return;
   const shareData = {
     title: "Bank Dice",
@@ -923,6 +1093,26 @@ shareCodeBtn?.addEventListener("click", async () => {
     }else if (navigator.clipboard){
       await navigator.clipboard.writeText(shareData.text);
       setSaveStatus("invite copied ✓");
+    }
+    setTimeout(() => renderGame(), 800);
+  }catch{
+    renderGame();
+  }
+});
+
+shareWatchBtn?.addEventListener("click", async () => {
+  if (session.mode !== "online" || !session.code) return;
+  const shareData = {
+    title: "Bank Dice Watch",
+    text: roomWatchText()
+  };
+  try{
+    if (navigator.share){
+      await navigator.share(shareData);
+      setSaveStatus("watch link shared ✓");
+    }else if (navigator.clipboard){
+      await navigator.clipboard.writeText(shareData.text);
+      setSaveStatus("watch link copied ✓");
     }
     setTimeout(() => renderGame(), 800);
   }catch{
@@ -947,7 +1137,10 @@ resetSaveBtn.addEventListener("click", () => {
 initTheme();
 renderSetup();
 installOnlineResync();
+setAppRoleClass();
+updateOnlineCopy();
 setOnlineStatus("");
 if (!bootFromQuery()){
   showHub();
 }
+maybeAutoJoinFromQuery();
